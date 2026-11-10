@@ -1,0 +1,1882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random Forests and Boosting Lab</title>
+<meta name="description" content="Interactive study guide for §18.4 and §18.5–18.5.4 of Murphy's Probabilistic Machine Learning: random forests and feature subsampling, additive models, forward stagewise additive modeling, least squares boosting, exponential loss and AdaBoost, and LogitBoost. Explanations at four levels, from elementary school to grad-level ML.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<script>
+window.MathJax = {
+  loader: { load: ['[tex]/html'] },
+  tex: { packages: { '[+]': ['html'] }, inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global' },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+<style>
+/* Layout: sticky chapter rail + one reading column; every section runs Explain it → Play → Math, slowly → Check yourself */
+:root {
+  --bg: #f3f1ec; --surface: #ffffff; --sunk: #e9e5dc; --ink: #1d1b18; --muted: #5f5a52; --rule: #d9d3c6;
+  --c0: #c0392b; --c1: #1f5fa8; --c2: #1d7a49; --c3: #a35d00; --c4: #6a3fc1; --c5: #0f7f86; --c6: #b0377f; --c7: #6b6b2a;
+  --gap: #a35d00; --mi: #6a3fc1; --green: #1d7a49; --red: #c0392b;
+  --c0-soft: rgba(192,57,43,.13); --c1-soft: rgba(31,95,168,.14); --c2-soft: rgba(29,122,73,.14); --gap-soft: rgba(163,93,0,.16); --mi-soft: rgba(106,63,193,.14); --green-soft: rgba(29,122,73,.14); --red-soft: rgba(192,57,43,.13);
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12110f; --surface: #1b1a17; --sunk: #25231f; --ink: #ece7de; --muted: #a59e92; --rule: #35322c;
+    --c0: #f0776a; --c1: #6ea8ec; --c2: #52c48a; --c3: #e2a34b; --c4: #b393f2; --c5: #4cc4cc; --c6: #ea7fbf; --c7: #c2c26a;
+    --gap: #e2a34b; --mi: #b393f2; --green: #52c48a; --red: #f0776a;
+    --c0-soft: rgba(240,119,106,.18); --c1-soft: rgba(110,168,236,.18); --c2-soft: rgba(82,196,138,.16); --gap-soft: rgba(226,163,75,.2); --mi-soft: rgba(179,147,242,.2); --green-soft: rgba(82,196,138,.16); --red-soft: rgba(240,119,106,.18);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12110f; --surface: #1b1a17; --sunk: #25231f; --ink: #ece7de; --muted: #a59e92; --rule: #35322c;
+  --c0: #f0776a; --c1: #6ea8ec; --c2: #52c48a; --c3: #e2a34b; --c4: #b393f2; --c5: #4cc4cc; --c6: #ea7fbf; --c7: #c2c26a;
+  --gap: #e2a34b; --mi: #b393f2; --green: #52c48a; --red: #f0776a;
+  --c0-soft: rgba(240,119,106,.18); --c1-soft: rgba(110,168,236,.18); --c2-soft: rgba(82,196,138,.16); --gap-soft: rgba(226,163,75,.2); --mi-soft: rgba(179,147,242,.2); --green-soft: rgba(82,196,138,.16); --red-soft: rgba(240,119,106,.18);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; margin: 0; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 0 80px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding-inline: 16px; } .rail { display: none; } }
+
+/* top bar */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); border-bottom: 1px solid var(--rule); }
+.topbar-in { max-width: 1180px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; }
+.brand { font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -.01em; white-space: nowrap; }
+.brand span { color: var(--mi); }
+.chips { display: none; overflow-x: auto; gap: 6px; flex: 1; min-width: 0; scrollbar-width: none; }
+.chips a { font-family: var(--mono); font-size: 12px; white-space: nowrap; padding: 4px 9px; border: 1px solid var(--rule); border-radius: 99px; color: var(--ink); text-decoration: none; }
+@media (max-width: 900px) { .chips { display: flex; } .topbar-in { padding: 10px 16px; flex-wrap: wrap; row-gap: 8px; } .brand { display: none; } }
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.score { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; padding: 5px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--rule); }
+.score b { color: var(--green); }
+.lvpick { display: inline-flex; border: 1px solid var(--rule); border-radius: 99px; overflow: hidden; background: var(--surface); }
+.lvpick button { font-family: var(--mono); font-size: 11.5px; padding: 5px 9px; border: 0; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.lvpick button.on { background: var(--mi); color: #fff; }
+@media (max-width: 900px) { .tb-right { margin-left: 0; width: 100%; justify-content: space-between; } }
+
+/* rail */
+.rail nav { position: sticky; top: 70px; padding-top: 40px; display: flex; flex-direction: column; gap: 2px; }
+.rail a { display: grid; grid-template-columns: 70px 1fr; gap: 4px; padding: 6px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; font-family: var(--display); font-size: 14.5px; line-height: 1.3; }
+.rail a .n { font-family: var(--mono); font-size: 11.5px; padding-top: 2px; }
+.rail a:hover, .rail a.on { color: var(--ink); background: var(--sunk); }
+
+main { min-width: 0; }
+header.hero { padding-block: 48px 28px; border-bottom: 1px solid var(--rule); }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(34px, 5.5vw, 58px); line-height: 1.02; letter-spacing: -.025em; margin: 10px 0 16px; text-wrap: balance; }
+h1 .m { color: var(--mi); }
+.lede { max-width: 66ch; color: var(--muted); font-size: 18px; margin: 0 0 12px; }
+.levelcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+@media (max-width: 760px) { .levelcards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.levelcards button { text-align: left; font-family: var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+.levelcards button b { display: block; font-family: var(--display); font-size: 17px; }
+.levelcards button span { font-size: 14px; color: var(--muted); line-height: 1.35; display: block; margin-top: 2px; }
+.levelcards button.on { border-color: var(--mi); box-shadow: inset 0 0 0 1.5px var(--mi); background: var(--mi-soft); }
+.legend3 { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 22px; font-family: var(--mono); font-size: 12.5px; }
+.legend3 span { display: inline-flex; align-items: center; gap: 8px; }
+.legend3 i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+section.sec { padding-block: 56px 8px; border-bottom: 1px solid var(--rule); scroll-margin-top: 60px; }
+.sec-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.secnum { font-family: var(--mono); font-size: 13px; color: var(--mi); border: 1px solid currentColor; border-radius: 4px; padding: 1px 7px; }
+h2 { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.1; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.intro { max-width: 66ch; }
+.intro p { margin: 12px 0; }
+
+.block { margin-top: 28px; }
+.blabel { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.blabel::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+.blabel .tag { color: var(--surface); background: var(--ink); padding: 2px 7px; border-radius: 3px; letter-spacing: .06em; }
+.block.math .blabel .tag { background: var(--c1); }
+.block.quiz .blabel .tag { background: var(--green); }
+.block.play .blabel .tag { background: var(--mi); }
+.block.lv .blabel .tag { background: var(--gap); }
+
+/* level explanations */
+.lvcard { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 0; overflow: hidden; }
+.lvtabs { display: flex; border-bottom: 1px solid var(--rule); background: var(--sunk); overflow-x: auto; scrollbar-width: none; }
+.lvtabs button { font-family: var(--mono); font-size: 12px; padding: 9px 14px; border: 0; border-right: 1px solid var(--rule); background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.lvtabs button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--mi); }
+.lvbody { padding: 6px 20px 14px; }
+.lvbody > div { max-width: 68ch; }
+.lvbody p, .lvbody li { margin: 10px 0; }
+.lvbody ul, .lvbody ol { padding-left: 22px; }
+.lvbody .big { font-size: 19px; }
+
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; }
+.panel + .panel { margin-top: 16px; }
+.panel h4 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0 0 4px; }
+.hint { font-size: 14.5px; color: var(--muted); margin: 0 0 12px; }
+.two { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.two-even { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .two, .two-even { grid-template-columns: minmax(0, 1fr); } }
+.cap { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+
+svg.plot { width: 100%; height: auto; display: block; overflow: visible; touch-action: none; user-select: none; -webkit-user-select: none; }
+svg.drag { cursor: crosshair; }
+svg:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--mi); outline-offset: 2px; }
+.ax { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.axl { font-family: var(--mono); font-size: 11.5px; fill: var(--ink); }
+.lbl { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.gridl { stroke: var(--rule); stroke-width: 1; }
+.base { stroke: var(--muted); stroke-width: 1; }
+.handle { cursor: grab; }
+
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+.stat { background: var(--sunk); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.stat .k { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.stat .v { font-family: var(--display); font-weight: 700; font-size: 23px; font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+.stat.r .v { color: var(--red); } .stat.b .v { color: var(--c1); } .stat.a .v { color: var(--gap); } .stat.g .v { color: var(--green); } .stat.m .v { color: var(--mi); }
+.chain { font-family: var(--mono); font-size: 13px; background: var(--sunk); border-radius: 8px; padding: 10px 14px; margin-top: 12px; line-height: 1.8; overflow-x: auto; }
+.chain .ok { color: var(--green); font-weight: 600; } .chain .bad { color: var(--red); font-weight: 600; } .chain .a { color: var(--gap); font-weight: 600; } .chain .mu { color: var(--muted); } .chain .m { color: var(--mi); font-weight: 600; }
+.verdict { font-family: var(--display); font-weight: 700; font-size: 20px; margin: 12px 0 0; }
+
+.btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+button.b { font-family: var(--mono); font-size: 12.5px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+button.b:hover:not(:disabled) { border-color: var(--ink); }
+button.b:disabled { opacity: .4; cursor: default; }
+button.b.pri { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btns .sep { width: 1px; align-self: stretch; background: var(--rule); margin: 0 4px; }
+.btns .lab { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+label.chk { font-family: var(--mono); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--rule); border-radius: 7px; overflow: hidden; }
+.seg button { font-family: var(--mono); font-size: 12px; padding: 7px 11px; border: 0; border-right: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--mi); color: #fff; }
+
+.ctrl { display: grid; grid-template-columns: 150px minmax(0, 1fr) 64px; align-items: center; gap: 10px; margin: 6px 0; font-family: var(--mono); font-size: 13px; }
+.ctrl label { color: var(--muted); }
+.ctrl output { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .ctrl { grid-template-columns: 110px minmax(0, 1fr) 54px; font-size: 12px; } }
+input[type=range] { width: 100%; accent-color: var(--mi); }
+
+/* probability bars */
+.postbars { display: grid; gap: 5px; font-family: var(--mono); font-size: 12px; }
+.postbars .r { display: grid; grid-template-columns: 74px minmax(0, 1fr) 54px; gap: 8px; align-items: center; }
+.postbars .bar { height: 16px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.postbars .bar i { display: block; height: 100%; transition: width .2s; }
+.postbars .v { text-align: right; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .postbars .bar i { transition: none; } }
+
+table.t { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.t th, table.t td { padding: 5px 8px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+table.t th:first-child, table.t td:first-child { text-align: left; }
+table.t th { color: var(--muted); font-weight: 400; font-size: 11.5px; }
+table.t td.mu { color: var(--muted); }
+table.t.wrap td:first-child { white-space: normal; }
+table.t tr.tot td { border-top: 2px solid var(--rule); font-weight: 600; }
+.scroll { overflow-x: auto; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+
+/* math */
+.mathcard { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 6px 20px 16px; }
+.mathcard + .mathcard { margin-top: 16px; }
+.mathcard h4 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 16px 0 4px; }
+.mathcard p, .mathcard li { max-width: 68ch; }
+.eq { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; margin: 10px 0 !important; padding: 2px 0; }
+.tr { color: var(--red); } .tb { color: var(--c1); } .ta { color: var(--gap); } .tg { color: var(--green); } .tm { color: var(--mi); }
+.steps { counter-reset: st; list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 4px; }
+.steps > li { counter-increment: st; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px dashed var(--rule); }
+.steps > li::before { content: counter(st); font-family: var(--mono); font-size: 12px; color: var(--surface); background: var(--c1); border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; margin-top: 4px; }
+.steps .why { color: var(--muted); font-size: 15px; }
+.steps > li > div { min-width: 0; }
+.steps > li > div, .lvbody p, .lvbody li, .mathcard p { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+.note { border-left: 3px solid var(--gap); padding: 6px 14px; margin: 14px 0; font-size: 15.5px; background: var(--sunk); border-radius: 0 6px 6px 0; }
+
+/* quiz */
+.quizbox { display: grid; gap: 14px; }
+.qq { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; }
+.qq .qt { font-weight: 600; margin: 0 0 10px; }
+.qq .qt .qn { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-right: 8px; font-weight: 400; }
+.qq .qt .ql { font-family: var(--mono); font-size: 11px; color: var(--gap); border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; margin-left: 8px; font-weight: 400; white-space: nowrap; }
+.opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 600px) { .opts { grid-template-columns: minmax(0, 1fr); } }
+.opt { text-align: left; font-family: var(--body); font-size: 15.5px; line-height: 1.4; padding: 9px 12px; border-radius: 7px; border: 1px solid var(--rule); background: var(--bg); color: var(--ink); cursor: pointer; }
+.opt:hover:not(:disabled) { border-color: var(--ink); }
+.opt:disabled { cursor: default; }
+.opt.right { border-color: var(--green); background: var(--green-soft); }
+.opt.wrong { border-color: var(--red); background: var(--red-soft); }
+.why-ans { margin: 10px 0 0; font-size: 15px; padding: 8px 12px; border-radius: 6px; background: var(--sunk); }
+.why-ans b.ok { color: var(--green); } .why-ans b.no { color: var(--red); }
+.quizfoot { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 12.5px; color: var(--muted); gap: 10px; flex-wrap: wrap; }
+
+table.vs { border-collapse: collapse; width: 100%; font-size: 15px; }
+table.vs th, table.vs td { padding: 9px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.vs thead th { font-family: var(--display); font-size: 16px; }
+table.vs tbody th { font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+
+footer { padding-block: 32px; color: var(--muted); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+
+
+/* additions for this lab */
+.halo { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.intro p { overflow-x: auto; overflow-y: hidden; }
+.legend3 i.ln { width: 18px; height: 3px; border-radius: 2px; }
+.legend3 i.sq { border-radius: 2px; }
+.legend3 i.dash { width: 18px; height: 0; border-radius: 0; border-top: 2px dashed var(--ink); background: none !important; }
+.legend3 i.ring { background: none !important; border: 2px solid var(--ink); width: 14px; height: 14px; }
+.verdict.ok { color: var(--green); } .verdict.bad { color: var(--red); } .verdict.meh { color: var(--gap); }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 760px) { .three { grid-template-columns: minmax(0, 1fr); } }
+.hov { font-family: var(--mono); font-size: 12.5px; color: var(--muted); min-height: 1.6em; margin: 6px 0 0; }
+.mini { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
+.keyrow span { display: inline-flex; align-items: center; gap: 6px; }
+.keyrow i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; }
+.keyrow i.d { height: 0; border-top: 2px dashed currentColor; background: none !important; }
+.keyrow i.c { width: 9px; height: 9px; border-radius: 50%; }
+.prog { height: 4px; background: var(--sunk); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+.prog i { display: block; height: 100%; width: 0; background: var(--mi); }
+textarea.mail { width: 100%; min-height: 150px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; }
+textarea.mail:focus-visible { outline: 2px solid var(--mi); outline-offset: 2px; }
+.algo { font-family: var(--mono); font-size: 13px; background: var(--sunk); border-radius: 8px; padding: 10px 14px; margin: 12px 0; line-height: 1.75; overflow-x: auto; }
+.algo .ln { color: var(--muted); display: inline-block; width: 1.6em; }
+.algo .on { background: var(--mi-soft); border-radius: 3px; }
+.algo div { padding: 0 4px; }
+.flist { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.flist span { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; border-radius: 4px; background: var(--sunk); color: var(--muted); }
+.flist span.rel { background: var(--mi-soft); color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Random <span>Forests</span> &amp; Boosting Lab</div>
+  <div class="chips">
+    <a href="#rf">18.4</a><a href="#boost">18.5</a><a href="#fsam">18.5.1</a><a href="#ls">18.5.2</a><a href="#ada">18.5.3</a><a href="#logit">18.5.4</a><a href="#cheat">Sheet</a>
+  </div>
+  <div class="tb-right">
+    <div class="lvpick" id="lvpick" role="group" aria-label="Explanation level">
+      <button data-setl="1">Kid</button><button data-setl="2">High school</button><button data-setl="3">Undergrad</button><button data-setl="4">Grad</button>
+    </div>
+    <div class="score" id="score">Quiz <b>0</b> / 0</div>
+  </div>
+</div></div>
+
+<div class="wrap">
+<aside class="rail"><nav id="rail">
+  <a href="#rf"><span class="n">18.4</span>Random forests</a>
+  <a href="#boost"><span class="n">18.5</span>Boosting and additive models</a>
+  <a href="#fsam"><span class="n">18.5.1</span>Forward stagewise fitting</a>
+  <a href="#ls"><span class="n">18.5.2</span>Least squares boosting</a>
+  <a href="#ada"><span class="n">18.5.3</span>Exponential loss and AdaBoost</a>
+  <a href="#logit"><span class="n">18.5.4</span>LogitBoost</a>
+  <a href="#cheat"><span class="n">—</span>Cheat sheet</a>
+</nav></aside>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Murphy, <i>Probabilistic Machine Learning</i> · Chapter 18 · §18.4 – §18.5.4</div>
+  <h1>Make the trees <span class="m">disagree</span>, or make each one fix the last one's mistakes.</h1>
+  <p class="lede">Bagging averages trees grown on resampled data, but if every tree asks the same first question, the trees stay correlated and averaging stops helping. A <b>random forest</b> (§18.4) also hides most of the features at every split, which forces the trees apart.</p>
+  <p class="lede"><b>Boosting</b> (§18.5) goes the other way. It grows the trees one at a time, and each new one is fit to what the ensemble so far gets wrong. Forward stagewise additive modeling (18.5.1) is the general recipe. With squared loss, each new tree is just fit to the residuals (18.5.2). With exponential loss you get AdaBoost (18.5.3), and with log loss you get LogitBoost (18.5.4).</p>
+  <p class="lede">Every section has four parts: <b>Explain it</b> at your level, <b>Play</b>, <b>Math, slowly</b>, and <b>Check yourself</b>. Your quiz score sits in the top bar.</p>
+  <div class="levelcards" id="levelcards">
+    <button data-setl="1"><b>Kid</b><span>Elementary school. Stories, no symbols.</span></button>
+    <button data-setl="2"><b>High school</b><span>Graphs, averages, a bit of algebra.</span></button>
+    <button data-setl="3"><b>Undergrad</b><span>Loss functions, the book's equations and algorithms.</span></button>
+    <button data-setl="4"><b>Grad / MLE</b><span>Theory, gradient views, what libraries actually do.</span></button>
+  </div>
+  <p class="hint" style="margin-top:10px">Pick a level here or in the top bar. Every "Explain it" box switches to match, and you can still flip tabs one box at a time.</p>
+  <div class="legend3">
+    <span><i style="background:var(--c3)"></i>bagging</span>
+    <span><i style="background:var(--c2)"></i>random forest</span>
+    <span><i style="background:var(--mi)"></i>boosting</span>
+    <span><i style="background:var(--c0)"></i>class +1 / spam</span>
+    <span><i class="sq" style="background:var(--c1)"></i>class −1 / ham</span>
+  </div>
+</header>
+
+<!-- ============ 18.4 Random forests ============ -->
+<section class="sec" id="rf">
+  <div class="sec-head"><span class="secnum">§18.4</span><h2>Random forests: hide most features at every split</h2></div>
+  <div class="intro">
+    <p>Bagging fits each tree to a bootstrap sample and averages them. That only helps if the trees are different enough. A <b>random forest</b> [Bre01] adds a second source of randomness: at each node \(i\), the split search of Eq. 18.5 may only look at a random subset \(S_i\subset\{1,\dots,D\}\) of the features,</p>
+    <p>\[ (j_i,t_i)=\arg\min_{j\in S_i}\ \min_{t\in\mathcal T_j}\ \frac{|\mathcal D_i^L|}{|\mathcal D_i|}c(\mathcal D_i^L)+\frac{|\mathcal D_i^R|}{|\mathcal D_i|}c(\mathcal D_i^R),\qquad |S_i|=m. \]</p>
+    <p>With \(m=D\) this is plain bagging. Common defaults are \(m\approx\sqrt D\) for classification and \(m\approx D/3\) for regression. The book's example is the HP <b>spam</b> data: 4601 emails, 57 features (48 word frequencies, 6 character frequencies, and 3 run-length features CAPAVE, CAPMAX, CAPTOT). On it, random forests clearly beat bagged trees (Fig. 18.5).</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">If everyone in a guessing game peeks at the same clue, they all make the same mistake.</p>
+        <p>Imagine 100 kids guessing if a letter is junk mail. One clue is super obvious, like a dollar sign. If every kid looks at the dollar sign first, they all think the same way, and asking 100 kids is no better than asking one.</p>
+        <p>So you play a trick: each time a kid wants to ask a question, you hand them only a few clue cards picked at random. Sometimes the dollar sign isn't in their hand, so they have to use other clues, like "does it say FREE?" Now the kids think in different ways. Each kid is a little worse on their own, but when they <b>vote</b>, their mistakes cancel out and the group gets better.</p>
+      </div>
+      <div data-l="2">
+        <p>Averaging only cancels out errors that are <b>different</b>. Two trees trained on bootstrap samples of the same data often look almost identical, because the best first split is the same in nearly every sample. Their mistakes line up, so the average is not much better than one tree.</p>
+        <p>A random forest says: at every split, pick \(m\) features at random (say 5 out of 30) and only search those. The strongest feature now gets skipped at many splits, and the trees use other features instead. Each tree gets a bit worse, but the trees become much less alike, and the vote improves.</p>
+        <p>In the Play box, watch the "root feature" chart: bagged trees almost always split on the same feature first, and random-forest trees spread their first splits out.</p>
+      </div>
+      <div data-l="3">
+        <p>From §18.2, an average of \(M\) identically distributed predictors with variance \(\sigma^2\) and pairwise correlation \(\rho\) has variance \(\rho\sigma^2+\frac{1-\rho}{M}\sigma^2\). More trees kill the second term only. Bagging leaves \(\rho\) high, so the \(\rho\sigma^2\) floor dominates.</p>
+        <p>Random feature subsets at every node lower \(\rho\) at the cost of a slightly higher \(\sigma^2\) and bias per tree. Smaller \(m\) means lower \(\rho\) but weaker trees, so the best \(m\) is somewhere in the middle. Sweep it in the Play box.</p>
+        <p>The trees are grown deep and unpruned (low bias, high variance), since averaging takes care of variance. Each tree is fit independently, so forests train in parallel. Boosting, which beats them on spam, has to fit its trees one after another.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Out-of-bag error.</b> Each bootstrap sample leaves out about \(e^{-1}\approx 37\%\) of the points. Predicting each point with only the trees that didn't see it gives a nearly free estimate of test error, so \(m\) can be tuned without a validation split.</li>
+          <li><b>When does it help?</b> The gain is largest when a few strong features would otherwise dominate every tree. With many irrelevant features, a very small \(m\) can hurt: most subsets contain no useful feature and the split is noise. The probability that a subset of size \(m\) misses all \(k\) relevant features is \(\binom{D-k}{m}/\binom Dm\).</li>
+          <li><b>Consistency.</b> Breiman's forests are hard to analyze. Simplified variants (purely random forests, honest trees with separate split and estimate samples) are consistent, and Wager &amp; Athey derive asymptotic normality for causal forests.</li>
+          <li><b>In practice.</b> scikit-learn's <code>max_features</code> is \(m\) (default <code>"sqrt"</code> for classifiers, 1.0, i.e. bagging, for regressors since v1.1). Extremely randomized trees go further and also draw the threshold at random.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Fig. 18.5, grown live in your browser</h3>
+    <div class="panel">
+      <h4>Test error vs number of trees</h4>
+      <p class="hint">A synthetic spam-like data set: 300 training emails, 1500 test emails, 30 features named after the spam data. 11 of them carry signal: five noisy copies of one hidden "spamminess" score (so they're correlated, like $, ! and "free" in real spam) and six with independent effects. The other 19 are noise. Run it to grow 200 bagged trees, 200 random-forest trees (\(m\) features per split) and 200 boosted depth-2 trees (LogitBoost, §18.5.4, with step size 0.2), and watch the three curves.</p>
+      <div class="ctrl"><label for="rf-m">m (features / split)</label><input type="range" id="rf-m" min="1" max="30" step="1" value="5"><output id="rf-m-o">5</output></div>
+      <div class="ctrl"><label for="rf-seed">data seed</label><input type="range" id="rf-seed" min="1" max="9" step="1" value="8"><output id="rf-seed-o">8</output></div>
+      <div class="btns"><button class="b pri" id="rf-run">Grow 200 trees of each</button><span class="lab" id="rf-status">not run yet</span></div>
+      <div class="prog"><i id="rf-prog"></i></div>
+      <div class="keyrow" style="margin-top:12px"><span><i style="background:var(--c3)"></i>bagging (m = 30)</span><span><i style="background:var(--c2)"></i>random forest (m chosen)</span><span><i style="background:var(--mi)"></i>boosting</span></div>
+      <svg class="plot" id="rf-curve" viewBox="0 0 640 300" aria-label="Test error versus number of trees for bagging, random forest and boosting"></svg>
+      <div class="readout">
+        <div class="stat a"><div class="k">bagging test error</div><div class="v" id="rf-eb">–</div></div>
+        <div class="stat g"><div class="k">random forest test error</div><div class="v" id="rf-er">–</div></div>
+        <div class="stat m"><div class="k">boosting test error</div><div class="v" id="rf-eo">–</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Why the forest wins: weaker trees, much less alike</h4>
+      <p class="hint">From the same run. Left: the feature each tree used for its <b>root</b> split. Right: the average single-tree error and the average correlation \(\rho\) between two trees' predictions on the test set. Plug them into \(\rho\sigma^2+\frac{1-\rho}{M}\sigma^2\) from §18.2.</p>
+      <div class="two-even">
+        <div><p class="cap">root-split feature, share of trees (top bar bagging, bottom bar forest)</p><svg class="plot" id="rf-root" viewBox="0 0 400 260" aria-label="Which feature each tree split on at its root"></svg></div>
+        <div>
+          <div class="scroll"><table class="t wrap" id="rf-tab"><thead><tr><th></th><th>bagging</th><th>forest</th></tr></thead><tbody>
+            <tr><td>one tree's test error</td><td id="rf-s1">–</td><td id="rf-s2">–</td></tr>
+            <tr><td>correlation ρ between trees</td><td id="rf-r1">–</td><td id="rf-r2">–</td></tr>
+            <tr><td>distinct root features</td><td id="rf-d1">–</td><td id="rf-d2">–</td></tr>
+            <tr class="tot"><td>200-tree test error</td><td id="rf-t1">–</td><td id="rf-t2">–</td></tr>
+          </tbody></table></div>
+          <p class="hint" style="margin-top:12px">Features that carry signal (hidden from the trees, of course):</p>
+          <div class="flist" id="rf-flist"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Sweep m: the forest's one important knob</h4>
+      <p class="hint">For each \(m\) from 1 to 30, grow 100 trees and record the ensemble's test error, one tree's average test error, and \(\rho\). \(m=30\) is bagging. Small \(m\) makes trees nearly independent but individually weak. This takes a few seconds.</p>
+      <div class="btns"><button class="b pri" id="rf-sweep">Sweep m</button><span class="lab" id="rf-sw-status">not run yet</span></div>
+      <div class="prog"><i id="rf-sw-prog"></i></div>
+      <div class="keyrow" style="margin-top:12px"><span><i style="background:var(--c2)"></i>100-tree forest test error</span><span><i class="d" style="color:var(--c3)"></i>one tree's test error</span><span><i style="background:var(--c4);opacity:.6"></i>ρ (right axis)</span></div>
+      <svg class="plot" id="rf-sw" viewBox="0 0 640 280" aria-label="Test error and tree correlation versus m"></svg>
+    </div>
+
+    <div class="panel">
+      <h4>What the spam features look like</h4>
+      <p class="hint">The real data's features are computed from the raw text. Edit the email and the features update. A word frequency is \(100\times\)(times the word appears) / (number of words). CAPAVE, CAPMAX and CAPTOT are the mean, longest and total lengths of runs of capital letters. The averages for the real data come from ESL Table 1.1; a value is red when it's closer to the spam average and blue when it's closer to the email average.</p>
+      <div class="seg" id="ml-pick" style="margin-bottom:10px"><button data-v="spam" class="on">a spam email</button><button data-v="ham">a work email</button></div>
+      <textarea class="mail" id="ml-text" aria-label="Email text" spellcheck="false"></textarea>
+      <div class="scroll" style="margin-top:10px"><table class="t" id="ml-tab"></table></div>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Why decorrelating helps</h3>
+    <div class="mathcard">
+      <ol class="steps">
+        <li><div>Let each tree's prediction at \(\mathbf x\) have variance \(\sigma^2\) and let any two trees have correlation \(\rho\). The forest average \(\bar f=\frac1M\sum_m F_m\) has
+          \[ \operatorname{Var}[\bar f]=\frac1{M^2}\Big(M\sigma^2+M(M-1)\rho\sigma^2\Big)=\rho\sigma^2+\frac{1-\rho}{M}\sigma^2 . \]
+          <span class="why">As \(M\to\infty\) the second term vanishes and \(\rho\sigma^2\) remains. Adding trees can't lower it; only lowering \(\rho\) can.</span></div></li>
+        <li><div>Bagging's only randomness is the bootstrap. If one feature is much stronger than the rest, nearly every bootstrap sample picks it at the root, the top of every tree is the same, and \(\rho\) is large.</div></li>
+        <li><div>The forest restricts node \(i\) to \(S_i\), \(|S_i|=m\), drawn fresh at every node. The chance that the strongest feature is even available at a given node is
+          \[ P(j^*\in S_i)=\frac{m}{D}. \]
+          <span class="why">With \(D=30,m=5\), the root of only one tree in six can use the dominant feature. The other five must start elsewhere, so trees differ from the top down.</span></div></li>
+        <li><div>The price: each tree is a little worse (higher \(\sigma^2\), some bias), because it sometimes splits on a weak or irrelevant feature. The chance that a node sees <i>none</i> of the \(k\) useful features is
+          \[ P(S_i\cap\mathcal R=\varnothing)=\binom{D-k}{m}\Big/\binom{D}{m}. \]
+          <span class="why">In the demo \(D=30,k=11\): 0.63 for \(m=1\), 0.39 for \(m=2\), 0.08 for \(m=5\). Small \(m\) wastes many splits on noise features; that's the left side of the sweep.</span></div></li>
+        <li><div>Both methods fit their trees independently, so they parallelize perfectly. Boosting (next) fits tree \(m\) to the errors of trees \(1,\dots,m-1\), so it is sequential.</div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>Random forests</h3><div class="quizbox" data-quiz="rf"></div></div>
+</section>
+
+<!-- ============ 18.5 Boosting ============ -->
+<section class="sec" id="boost">
+  <div class="sec-head"><span class="secnum">§18.5</span><h2>Boosting: an additive model fit one piece at a time</h2></div>
+  <div class="intro">
+    <p>Bagged trees and forests are already a sum of functions,</p>
+    <p>\[ f(\mathbf x;\theta)=\sum_{m=1}^M\beta_mF_m(\mathbf x;\theta_m), \tag{18.15} \]</p>
+    <p>with \(\beta_m=1/M\). Let the \(F_m\) be any function approximators and fit everything to minimize the empirical loss \(\mathcal L(f)=\sum_{i=1}^N\ell(y_i,f(\mathbf x_i))\) (18.16), and you have an <b>additive model</b>: a linear model with adaptive basis functions.</p>
+    <p><b>Boosting</b> fits the pieces <b>in sequence</b>. Fit \(F_1\) to the data, then reweight the data so the examples \(F_1\) got wrong count more, fit \(F_2\), and so on up to \(M\) (chosen on a validation set, with early stopping). If each \(F_m\) is a <b>weak learner</b>, only a bit better than chance even on the reweighted data, the combination is a <b>strong learner</b>. Boosting mainly reduces <b>bias</b>, while bagging and forests reduce <b>variance</b>.</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">A team where each new player practices only the shots the team keeps missing.</p>
+        <p>The first player tries to guess the answers and gets some wrong. The coach circles the ones they missed in red. The second player studies mostly the circled ones. Then the coach circles what the <i>team</i> still gets wrong, and the third player studies those. And so on.</p>
+        <p>No player is great alone. Each one is only a little better than flipping a coin. But because each one covers the holes the others left, the whole team gets really good.</p>
+        <p>Bagging is different: everyone practices on their own, on slightly different worksheets, and then they vote. That helps when players are good but jumpy. Boosting helps when players are too simple to get it right alone.</p>
+      </div>
+      <div data-l="2">
+        <p>Think of the model as a sum of simple pieces, like stacking LEGO bricks to match a curved shape. One flat brick (a "stump", a tree with a single question) is a terrible fit. Boosting adds bricks one at a time, each placed where the current stack is furthest from the target.</p>
+        <p>Bagging also adds up simple pieces, but each piece tries to match the <i>whole</i> target by itself. Averaging many identical-looking stumps still gives roughly one step: the average can't be curvier than its pieces. That's <b>bias</b>, and voting doesn't fix it.</p>
+        <p>In the Play box, compare 100 bagged stumps with 100 boosted stumps. Then switch to full-depth trees and watch the opposite happen.</p>
+      </div>
+      <div data-l="3">
+        <p>Additive model: \(f=\sum_m\beta_mF_m\) minimizing \(\sum_i\ell(y_i,f(\mathbf x_i))\). Fitting all \((\beta_m,\theta_m)\) jointly is hard, so boosting fits them greedily one at a time (§18.5.1).</p>
+        <p><b>Bias vs variance.</b> Bagging averages i.i.d. fits, so \(\mathbb E[\bar f]=\mathbb E[F_m]\): the bias of one tree, with less variance. Boosted terms depend on each other: \(F_m\) is fit to what \(f_{m-1}\) misses, so the sum can represent functions no single weak learner can, which lowers bias. Each step adds capacity, so \(M\) needs to be tuned.</p>
+        <p>The original boosting [Sch90; FS96] used binary classifiers \(F_m\in\{-1,+1\}\) and came out of PAC learning theory. The statistical view [FHT00; Fri01] works with any differentiable loss: regression, multiclass, ranking.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Weak-to-strong.</b> Schapire's question: is weak PAC learnability (accuracy \(\tfrac12+\gamma\) under every distribution) the same as strong? AdaBoost answers yes constructively: training error \(\le\prod_m2\sqrt{\epsilon_m(1-\epsilon_m)}\le e^{-2\sum_m\gamma_m^2}\).</li>
+          <li><b>Basis-function view.</b> With stumps, \(f\) is a GAM: a sum of univariate step functions. Depth-\(d\) trees allow interactions up to order \(d\), so the base learner's depth sets the interaction order.</li>
+          <li><b>Regularization knobs</b> beyond \(M\): shrinkage \(\nu\) (update \(f_m=f_{m-1}+\nu\beta_mF_m\)), row subsampling (stochastic GB), tree size, leaf penalties (XGBoost). Small \(\nu\) with large \(M\) usually generalizes best.</li>
+          <li><b>Not variance-free.</b> Boosting with strong base learners or noisy labels overfits. In the full-tree case below, the first tree already interpolates and the rest add nothing.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Same pieces, different team: bagging vs boosting</h3>
+    <div class="panel">
+      <p class="hint">80 noisy points from a smooth curve (dashed). Both sides use the same kind of tree. Left: average \(M\) trees, each fit to a bootstrap sample. Right: least squares boosting (§18.5.2), each tree fit to the current residuals. Start with stumps, then try deeper trees.</p>
+      <div class="btns" style="margin-top:0"><span class="lab">base learner</span><span class="seg" id="bv-depth"><button data-v="1" class="on">stump (depth 1)</button><button data-v="2">depth 2</button><button data-v="4">depth 4</button><button data-v="99">full tree</button></span></div>
+      <div class="ctrl" style="margin-top:10px"><label for="bv-M">M (trees)</label><input type="range" id="bv-M" min="1" max="200" step="1" value="1"><output id="bv-M-o">1</output></div>
+      <div class="two-even" style="margin-top:8px">
+        <div><p class="cap">bagging: average of M trees</p><svg class="plot" id="bv-bag" viewBox="0 0 400 260" aria-label="Bagged trees fit"></svg></div>
+        <div><p class="cap">boosting: sum of M trees</p><svg class="plot" id="bv-bst" viewBox="0 0 400 260" aria-label="Boosted trees fit"></svg></div>
+      </div>
+      <div class="readout">
+        <div class="stat a"><div class="k">bagging train / test MSE</div><div class="v" id="bv-eb">–</div></div>
+        <div class="stat m"><div class="k">boosting train / test MSE</div><div class="v" id="bv-eo">–</div></div>
+        <div class="stat"><div class="k">noise variance (best possible test)</div><div class="v" id="bv-noise">–</div></div>
+      </div>
+      <p class="verdict" id="bv-verdict"></p>
+      <p class="cap" style="margin-top:14px">test MSE as M grows (log scale in M)</p>
+      <svg class="plot" id="bv-curve" viewBox="0 0 640 200" aria-label="Test MSE versus number of trees"></svg>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Equations 18.15–18.16</h3>
+    <div class="mathcard">
+      <ol class="steps">
+        <li><div>The model is a weighted sum of \(M\) base functions:
+          \[ f(\mathbf x;\theta)=\sum_{m=1}^M\beta_mF_m(\mathbf x;\theta_m) \tag{18.15} \]
+          <span class="why">Bagging/forests: \(\beta_m=\tfrac1M\) and each \(F_m\) is a tree fit on its own. If the \(\theta_m\) were fixed, this would be linear regression on the features \(F_m(\mathbf x)\). Here the features themselves are learned: "adaptive basis functions".</span></div></li>
+        <li><div>The training objective is the usual empirical loss (plus an optional regularizer):
+          \[ \mathcal L(f)=\sum_{i=1}^N\ell\big(y_i,f(\mathbf x_i)\big) \tag{18.16} \]</div></li>
+        <li><div>Bagging's average has the same expectation as one member, \(\mathbb E\big[\tfrac1M\sum_mF_m(\mathbf x)\big]=\mathbb E[F_1(\mathbf x)]\), so its bias equals one tree's bias. <span class="why">Average 100 stumps fit to resamples of a sine-like curve and you still get something close to a single step. Only the jumpy variance is reduced.</span></div></li>
+        <li><div>In boosting, \(F_m\) depends on \(F_1,\dots,F_{m-1}\). With stumps, after \(M\) rounds \(f\) is a step function with up to \(M\) jumps, so it can follow any shape in 1-D. <span class="why">Bias falls with \(M\). Variance rises slowly, so test error is U-shaped in \(M\); pick \(M\) by validation and stop early.</span></div></li>
+        <li><div>Weak learner: training accuracy at least \(\tfrac12+\gamma\) on <i>every</i> reweighting the algorithm produces. Then the boosted training error falls exponentially in \(M\) (proved for AdaBoost in §18.5.3's grad box).</div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>Boosting and additive models</h3><div class="quizbox" data-quiz="boost"></div></div>
+</section>
+
+<!-- ============ 18.5.1 Forward stagewise ============ -->
+<section class="sec" id="fsam">
+  <div class="sec-head"><span class="secnum">§18.5.1</span><h2>Forward stagewise: add one term, freeze it, repeat</h2></div>
+  <div class="intro">
+    <p>Optimizing all \(M\) terms of Eq. 18.15 at once is hard. <b>Forward stagewise additive modeling</b> keeps everything already in the model fixed and solves only for the next term. At iteration \(m\):</p>
+    <p>\[ (\beta_m,\theta_m)=\arg\min_{\beta,\theta}\sum_{i=1}^N\ell\big(y_i,\ f_{m-1}(\mathbf x_i)+\beta F(\mathbf x_i;\theta)\big) \tag{18.17} \]</p>
+    <p>\[ f_m(\mathbf x)=f_{m-1}(\mathbf x)+\beta_mF_m(\mathbf x),\qquad F_m(\mathbf x)=F(\mathbf x;\theta_m) \tag{18.18} \]</p>
+    <p>The earlier parameters are never revisited. How to solve Eq. 18.17 depends on the loss \(\ell\) and on the weak learner \(F\). The next three sections work it out for squared, exponential and log loss.</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">Build a tower one block at a time, and never pull out a block you already placed.</p>
+        <p>You're trying to make a tower match a wavy drawing. You get one block at a time. For each block, you pick <i>where</i> it goes (that's \(\theta\)) and <i>how tall</i> it is (that's \(\beta\)) so the tower looks as close to the drawing as it can right now. Then the block is glued down. Next block, same thing.</p>
+        <p>You never go back and move an old block. That makes each choice easy, even if the final tower isn't the very best one possible.</p>
+      </div>
+      <div data-l="2">
+        <p>At each step the model is "what we have so far" plus "one new piece times a size". We search over the new piece's shape and size to make the total error as small as possible, then lock it in.</p>
+        <p>The error rule (the loss) matters. Squared error cares a lot about big misses, so one weird point can drag the new piece toward it. Absolute error cares less about big misses, so it shrugs off outliers. In the Play box, add outliers and switch the loss.</p>
+      </div>
+      <div data-l="3">
+        <p>Eq. 18.17 is a small optimization over \((\beta,\theta)\) with \(f_{m-1}\) as a fixed offset. Here \(F\) is a <b>sign stump</b>, \(F(x;t)=-1\) if \(x\le t\) and \(+1\) otherwise, so \(\theta=t\). For each \(t\) we line-search \(\beta\), then keep the best \(t\).</p>
+        <p>Because \(F(x_i)=\pm1\), for any loss of the residual \(\ell(y,\hat y)=\rho(y-\hat y)\) with \(\rho\) symmetric:
+        \(\rho(r_i-\beta F_i)=\rho(F_ir_i-\beta)\). So \(\beta\) is a location estimate of the "signed residuals" \(F_ir_i\): their <b>mean</b> for squared loss, <b>median</b> for absolute loss, and the Huber M-estimate for Huber loss.</p>
+        <p>Not adjusting earlier terms is the difference between <i>stagewise</i> and <i>stepwise</i> (which refits all coefficients each step). Stagewise fitting is slower to converge but acts as a regularizer.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Functional coordinate descent.</b> Eq. 18.17 is exact line search along the "coordinate" \(F(\cdot;\theta)\) chosen from the dictionary of all weak learners. Gradient boosting (§18.5.6) replaces the exact inner argmin by fitting \(F\) to the negative gradient \(-\partial\ell/\partial f(\mathbf x_i)\), which is what makes arbitrary losses cheap.</li>
+          <li><b>Lasso connection.</b> Stagewise with tiny steps (\(\epsilon\)-boosting) on a fixed dictionary traces approximately the lasso path (exactly, under monotonicity conditions; Efron et al. 2004, LARS).</li>
+          <li><b>Backfitting</b> is the "go back" alternative: cycle through the terms, refitting each to the partial residuals of the others. It is the classic GAM fitter.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Solve Eq. 18.17 by brute force, one term at a time</h3>
+    <div class="panel">
+      <p class="hint">Weak learner: a sign stump \(\beta\cdot\mathrm{sgn}(x-t)\). For every threshold \(t\) the page finds the best \(\beta\) under the chosen loss, and plots the resulting loss (top right). The best \(t\) is marked; hover or drag on that curve to inspect any other \(t\). The bottom right plot shows \(\mathcal L(\beta)\) for the inspected \(t\). "Add term" commits the best pair (Eq. 18.18).</p>
+      <div class="btns" style="margin-top:0">
+        <span class="lab">loss</span><span class="seg" id="fs-loss"><button data-v="sq" class="on">squared</button><button data-v="abs">absolute</button><button data-v="hub">Huber (δ = 0.3)</button></span>
+        <label class="chk"><input type="checkbox" id="fs-out"> add 4 outliers</label>
+      </div>
+      <div class="btns"><button class="b pri" id="fs-step">Add term m+1</button><button class="b" id="fs-10">Add 10</button><button class="b" id="fs-reset">Reset to f₀ = 0</button></div>
+      <div class="two" style="margin-top:12px">
+        <div><p class="cap">data, f<sub>m−1</sub> (solid), proposed f<sub>m</sub> (dashed)</p><svg class="plot" id="fs-fit" viewBox="0 0 400 300" aria-label="Data and current additive fit"></svg></div>
+        <div>
+          <p class="cap">min over β of Σ ℓ, for each threshold t</p><svg class="plot drag" id="fs-prof" viewBox="0 0 360 150" aria-label="Loss profile over thresholds"></svg>
+          <p class="cap" style="margin-top:8px">Σ ℓ as a function of β at the inspected t</p><svg class="plot" id="fs-beta" viewBox="0 0 360 150" aria-label="Loss as a function of beta"></svg>
+        </div>
+      </div>
+      <div class="readout">
+        <div class="stat"><div class="k">terms in f</div><div class="v" id="fs-m">0</div></div>
+        <div class="stat m"><div class="k">inspected t</div><div class="v" id="fs-t">–</div></div>
+        <div class="stat b"><div class="k">best β there</div><div class="v" id="fs-b">–</div></div>
+        <div class="stat a"><div class="k">Σ ℓ now → after</div><div class="v" id="fs-L">–</div></div>
+      </div>
+      <div class="chain" id="fs-chain"></div>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Equations 18.17–18.18 with a sign stump</h3>
+    <div class="mathcard">
+      <ol class="steps">
+        <li><div>Start with \(f_0(\mathbf x)=0\) (or a constant). At step \(m\) the residuals are \(r_i=y_i-f_{m-1}(\mathbf x_i)\), and these are fixed numbers during the step.</div></li>
+        <li><div>For a residual loss \(\ell(y,\hat y)=\rho(y-\hat y)\), the step objective is
+          \[ \sum_i\rho\big(r_i-\beta F(\mathbf x_i;\theta)\big). \]
+          With \(F_i=\pm1\) and \(\rho\) symmetric, \(\rho(r_i-\beta F_i)=\rho\big(F_i(F_ir_i-\beta)\big)=\rho(F_ir_i-\beta)\).</div></li>
+        <li><div>So for a fixed \(\theta\), the best \(\beta\) is a location estimate of \(s_i=F_ir_i\):
+          \[ \begin{aligned}\beta^*_{\text{sq}}&=\tfrac1N\textstyle\sum_is_i\\ \beta^*_{\text{abs}}&=\operatorname{median}(s_i)\\ \beta^*_{\text{Huber}}&=\arg\min_\beta\textstyle\sum_i\rho_\delta(s_i-\beta)\end{aligned} \]
+          <span class="why">The mean is pulled by one huge residual; the median is not. That's why the dashed proposal chases outliers only under squared loss.</span></div></li>
+        <li><div>Then pick \(\theta_m\) (here the threshold) with the smallest \(\min_\beta\) loss, and update
+          \[ f_m(\mathbf x)=f_{m-1}(\mathbf x)+\beta_mF_m(\mathbf x). \tag{18.18} \]
+          <span class="why">Nothing about \(F_1,\dots,F_{m-1}\) or \(\beta_1,\dots,\beta_{m-1}\) changes. The loss can only go down (\(\beta=0\) is always allowed).</span></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>Forward stagewise</h3><div class="quizbox" data-quiz="fsam"></div></div>
+</section>
+
+<!-- ============ 18.5.2 Least squares boosting ============ -->
+<section class="sec" id="ls">
+  <div class="sec-head"><span class="secnum">§18.5.2</span><h2>Least squares boosting: fit the next tree to the residuals</h2></div>
+  <div class="intro">
+    <p>With squared error \(\ell(y,\hat y)=(y-\hat y)^2\), the \(i\)'th term of Eq. 18.17 becomes</p>
+    <p>\[ \begin{aligned}\ell\big(y_i,f_{m-1}(\mathbf x_i)+\beta F(\mathbf x_i;\theta)\big)&=\big(y_i-f_{m-1}(\mathbf x_i)-\beta F(\mathbf x_i;\theta)\big)^2\\&=\big(r_{im}-\beta F(\mathbf x_i;\theta)\big)^2\end{aligned} \tag{18.19} \]</p>
+    <p>where \(r_{im}=y_i-f_{m-1}(\mathbf x_i)\) is the <b>residual</b>. A regression tree has free leaf values, so \(\beta\) can be absorbed into them: set \(\beta=1\) and fit \(F\) to the residuals by ordinary least squares. This is <b>least squares boosting</b> [BY03]. Fig. 18.6 shows it with depth-2 regression trees.</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">Guess, measure how far off you are, then make a second guess about the leftover.</p>
+        <p>Guess the heights of your classmates. Your first guess is rough. Now write down, for each kid, how much you missed by. Your next helper doesn't guess the heights; it guesses those <i>misses</i>. Add the two guesses together, and you're closer. Then a third helper guesses what's still missing, and so on.</p>
+      </div>
+      <div data-l="2">
+        <p>A residual is "actual minus predicted". After the first tree, plot the residuals: they're the part of the pattern the first tree missed. Fit a second small tree to <i>those points</i>, add its prediction to the first, and the leftover shrinks.</p>
+        <p>In the Play box, the left plot shows the residuals and the new tree \(F_m\). The right plot shows the running total \(f_m\). Step through and watch the residuals flatten out toward pure noise.</p>
+      </div>
+      <div data-l="3">
+        <p>Minimizing \(\sum_i(r_{im}-\beta F(\mathbf x_i))^2\) over a regression tree \(F\): for any fixed partition, the optimal \(\beta w_j\) is the mean residual in leaf \(j\). So \(\beta\) is redundant (\(\beta=1\)), and the step is "grow a CART regression tree on \((\mathbf x_i,r_{im})\)".</p>
+        <p>The training MSE never increases. With depth-\(d\) trees, enough steps drive it to the noise floor and then below it (overfitting), so \(M\) is chosen on held-out data.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Gradient view.</b> \(r_{im}=-\tfrac12\,\partial(y_i-f)^2/\partial f\big|_{f_{m-1}(\mathbf x_i)}\). Fitting the residual is fitting the negative gradient; for other losses that gives gradient boosting (§18.5.6).</li>
+          <li><b>Shrinkage.</b> In practice \(f_m=f_{m-1}+\nu F_m\) with \(\nu\in[0.01,0.1]\). Friedman found it consistently helps test error, at the cost of more trees. Géron's version of Fig. 18.6 uses \(\nu=1\).</li>
+          <li><b>L2Boosting</b> (Bühlmann &amp; Yu 2003) with smoothing-spline learners: each step is a linear smoother \(S\), so \(\hat{\mathbf f}_m=(I-(I-S)^m)\mathbf y\). Bias decays exponentially and variance grows slowly, which gives an explicit bias-variance analysis of \(M\).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Fig. 18.6, one tree at a time</h3>
+    <div class="panel">
+      <p class="hint">100 points from \(y=3x^2+\varepsilon\), \(\varepsilon\sim\mathcal N(0,0.05^2)\), \(x\in[-0.5,0.5]\), as in Géron's version of the figure. Each step fits a regression tree of the chosen depth to the current residuals.</p>
+      <div class="btns" style="margin-top:0"><span class="lab">tree depth</span><span class="seg" id="ls-depth"><button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="3">3</button></span></div>
+      <div class="ctrl" style="margin-top:10px"><label for="ls-m">step m</label><input type="range" id="ls-m" min="1" max="60" step="1" value="1"><output id="ls-m-o">1</output></div>
+      <div class="btns"><button class="b" id="ls-prev">← previous</button><button class="b pri" id="ls-next">next tree →</button></div>
+      <div class="two-even" style="margin-top:10px">
+        <div><p class="cap" id="ls-capL">residuals r<sub>i1</sub> = y<sub>i</sub> and the new tree F<sub>1</sub></p><svg class="plot" id="ls-res" viewBox="0 0 400 270" aria-label="Residuals and the tree fit to them"></svg></div>
+        <div><p class="cap" id="ls-capR">ensemble f<sub>1</sub> = F<sub>1</sub></p><svg class="plot" id="ls-ens" viewBox="0 0 400 270" aria-label="Ensemble prediction"></svg></div>
+      </div>
+      <div class="readout">
+        <div class="stat b"><div class="k">train MSE of f_m</div><div class="v" id="ls-tr">–</div></div>
+        <div class="stat r"><div class="k">test MSE of f_m</div><div class="v" id="ls-te">–</div></div>
+        <div class="stat"><div class="k">noise floor σ²</div><div class="v">0.0025</div></div>
+      </div>
+      <p class="cap" style="margin-top:14px">train (blue) and test (red) MSE vs m, current m marked</p>
+      <svg class="plot" id="ls-curve" viewBox="0 0 640 190" aria-label="Train and test MSE versus number of trees"></svg>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Equation 18.19</h3>
+    <div class="mathcard">
+      <ol class="steps">
+        <li><div>Put squared loss into Eq. 18.17 and group the known parts:
+          \[ \big(y_i-f_{m-1}(\mathbf x_i)-\beta F(\mathbf x_i;\theta)\big)^2=\big(r_{im}-\beta F(\mathbf x_i;\theta)\big)^2 \tag{18.19} \]
+          with \(r_{im}=y_i-f_{m-1}(\mathbf x_i)\).
+          <span class="why">Step \(m\) is a least squares problem with targets \(r_{im}\) instead of \(y_i\).</span></div></li>
+        <li><div>A regression tree is \(F(\mathbf x)=\sum_jw_j\mathbb I(\mathbf x\in R_j)\), so \(\beta F=\sum_j(\beta w_j)\mathbb I(\mathbf x\in R_j)\). The leaf values absorb \(\beta\): set \(\beta=1\).</div></li>
+        <li><div>For a fixed partition, the best leaf value is the mean residual in the leaf:
+          \[ w_j=\frac{\sum_ir_{im}\mathbb I(\mathbf x_i\in R_j)}{\sum_i\mathbb I(\mathbf x_i\in R_j)} \]
+          <span class="why">Exactly Eq. 18.3 with \(y\) replaced by \(r\). The partition itself is grown greedily with the MSE cost (18.6).</span></div></li>
+        <li><div>Worked step: before step 1, \(f_0=0\), so \(r_{i1}=y_i\) and \(F_1\) is a plain tree on \(y\). At step 2, a point with \(y_i=0.40\) in a leaf where \(F_1=0.31\) has \(r_{i2}=0.09\). \(F_2\) tries to explain these leftovers. <span class="why">If \(F_2\)'s leaf there predicts \(0.07\), then \(f_2(\mathbf x_i)=0.38\), closer to \(0.40\).</span></div></li>
+        <li><div>Training error can't go up: \(\sum_i(r_{im}-F_m(\mathbf x_i))^2\le\sum_ir_{im}^2\), because \(F\equiv0\) is a feasible tree (and a root-only tree with mean residual already does at least as well).</div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>Least squares boosting</h3><div class="quizbox" data-quiz="ls"></div></div>
+</section>
+
+<!-- ============ 18.5.3 AdaBoost ============ -->
+<section class="sec" id="ada">
+  <div class="sec-head"><span class="secnum">§18.5.3</span><h2>Exponential loss and AdaBoost: upweight the mistakes</h2></div>
+  <div class="intro">
+    <p>For binary labels \(\tilde y\in\{-1,+1\}\), let the model output \(F(\mathbf x)\) be half the log odds, so \(p(y=1\mid\mathbf x)=1/(1+e^{-2F(\mathbf x)})\) (18.20). The negative log likelihood is \(\ell=\log(1+e^{-2\tilde yF(\mathbf x)})\) (18.21). Both depend only on the <b>margin</b> \(m(\mathbf x)=\tilde yF(\mathbf x)\): positive means correct, and bigger is more confident.</p>
+    <p>The <b>exponential loss</b> \(\ell(\tilde y,F(\mathbf x))=\exp(-\tilde yF(\mathbf x))\) (18.22) is another smooth upper bound on the 0-1 loss with the same population minimizer, and it makes Eq. 18.17 easy to solve. With binary weak learners \(F_m\in\{-1,+1\}\), the result is <b>discrete AdaBoost</b>: fit \(F_m\) to the data weighted by \(\omega_{i,m}=e^{-\tilde y_if_{m-1}(\mathbf x_i)}\), set \(\beta_m=\tfrac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m}\), and multiply the weight of every misclassified example by \(e^{\alpha_m}\), \(\alpha_m=2\beta_m\).</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">Every time the team misses an example, that example gets bigger, so the next player can't ignore it.</p>
+        <p>Picture the practice examples as dots. They all start the same size. A helper draws one straight line to split red from blue and gets some dots wrong. Those wrong dots puff up. The next helper wants to get the <i>big</i> dots right most of all, so they draw their line somewhere else.</p>
+        <p>Helpers who did well get a louder voice in the final vote, and helpers who were barely better than guessing get a quiet voice. Step through the Play box and watch the dots grow.</p>
+      </div>
+      <div data-l="2">
+        <p>The <b>margin</b> is "label times score": positive if the model is right, negative if it's wrong, large if it's confident. Different losses punish margins differently. The 0-1 loss is a cliff (1 if wrong, 0 if right). The others are smooth slopes that sit above that cliff, so pushing them down also pushes errors down.</p>
+        <p>Exponential loss grows very fast for negative margins: an example the model gets badly wrong costs a lot. AdaBoost turns that cost into a <b>weight</b> on each example. After each round, weights of the mistakes are multiplied by \(e^{\alpha}\), and the next stump trains on the reweighted data.</p>
+        <p>The stump's vote \(\alpha=\log\frac{1-\text{err}}{\text{err}}\) is big when its weighted error is small, and 0 at err = ½ (a coin flip gets no say).</p>
+      </div>
+      <div data-l="3">
+        <p>Write \(L_m(F)=\sum_i\omega_{i,m}e^{-\beta\tilde y_iF(\mathbf x_i)}\) with \(\omega_{i,m}=e^{-\tilde y_if_{m-1}(\mathbf x_i)}\). Split the sum into correct and wrong cases: it equals \((e^\beta-e^{-\beta})\sum_i\omega_{i,m}\mathbb I(\tilde y_i\ne F(\mathbf x_i))+e^{-\beta}\sum_i\omega_{i,m}\). For any \(\beta\gt0\) the best \(F\) minimizes <b>weighted training error</b> (18.29). Setting \(\partial L_m/\partial\beta=0\) gives \(\beta_m=\tfrac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m}\) (18.30).</p>
+        <p>The new weights are \(\omega_{i,m+1}=\omega_{i,m}e^{-\beta_m\tilde y_iF_m(\mathbf x_i)}\). Using \(-\tilde yF=2\mathbb I(\tilde y\ne F)-1\) and dropping the common factor \(e^{-\beta_m}\): multiply mistakes by \(e^{\alpha_m}\), leave the rest (18.35).</p>
+        <p>Population minimizer (18.23–25): \(\mathbb E[e^{-\tilde yF}\mid\mathbf x]\) is smallest at \(F^*=\tfrac12\log\frac{p(\tilde y=1|\mathbf x)}{p(\tilde y=-1|\mathbf x)}\), the same as log loss. Check it with the slider below.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Training error bound.</b> With normalized weights, \(Z_m=\sum_i\bar\omega_{i,m}e^{-\beta_m\tilde y_iF_m}=2\sqrt{\epsilon_m(1-\epsilon_m)}\), and \(\frac1N\sum_i\mathbb I(\tilde y_if_M(\mathbf x_i)\le0)\le\frac1N\sum_ie^{-\tilde y_if_M(\mathbf x_i)}=\prod_mZ_m\). The Play box draws this bound.</li>
+          <li><b>After the update, \(F_m\) has weighted error exactly ½.</b> The reweighting makes the last learner useless on the new weights, which forces the next one to be different.</li>
+          <li><b>Margins.</b> Test error often keeps falling after training error hits 0. Schapire et al. (1998) explain this with the distribution of normalized margins \(\tilde yf/\sum|\alpha_m|\), which keeps growing.</li>
+          <li><b>Multiclass.</b> SAMME [Has+09] uses \(\alpha_m=\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m}+\log(K-1)\), so a learner only needs to beat \(1/K\). This is scikit-learn's <code>AdaBoostClassifier</code>.</li>
+          <li><b>Real AdaBoost</b> lets \(F_m\) output \(\tfrac12\log\frac{p_w(y=1|\mathbf x)}{p_w(y=-1|\mathbf x)}\) from a weighted class-probability estimate.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Loss functions, then AdaBoost.M1 step by step</h3>
+    <div class="panel">
+      <h4>Fig. 18.7: losses as a function of the margin</h4>
+      <p class="hint">Drag the margin slider. The 0-1 loss counts mistakes. Hinge, log (base 2, as in the figure) and exponential loss are convex upper bounds on it.</p>
+      <div class="ctrl"><label for="lo-m">margin ỹF(x)</label><input type="range" id="lo-m" min="-2" max="2" step="0.05" value="-0.5"><output id="lo-m-o">−0.50</output></div>
+      <div class="keyrow"><span><i style="background:var(--ink)"></i>0-1</span><span><i style="background:var(--c1)"></i>hinge max(0, 1 − m)</span><span><i style="background:var(--c2)"></i>log₂(1 + e<sup>−m</sup>)</span><span><i style="background:var(--c0)"></i>exp e<sup>−m</sup></span></div>
+      <div class="two">
+        <svg class="plot" id="lo-plot" viewBox="0 0 400 280" aria-label="Loss functions versus margin"></svg>
+        <div class="postbars" id="lo-bars" style="align-self:center"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Same minimizer: the expected loss at one x (Eqs. 18.23–18.25)</h4>
+      <p class="hint">Set the true \(p(\tilde y=1\mid\mathbf x)\). The curves are the expected exponential loss \(p\,e^{-F}+(1-p)e^{F}\) and expected log loss \(p\log(1+e^{-2F})+(1-p)\log(1+e^{2F})\), as functions of the score \(F\). Both bottom out at the same \(F^*\).</p>
+      <div class="ctrl"><label for="pm-p">p(ỹ = 1 | x)</label><input type="range" id="pm-p" min="0.02" max="0.98" step="0.01" value="0.8"><output id="pm-p-o">0.80</output></div>
+      <div class="two">
+        <svg class="plot" id="pm-plot" viewBox="0 0 400 240" aria-label="Expected losses versus score"></svg>
+        <div>
+          <div class="readout" style="margin-top:0">
+            <div class="stat r"><div class="k">argmin exp loss</div><div class="v" id="pm-fe">–</div></div>
+            <div class="stat g"><div class="k">argmin log loss</div><div class="v" id="pm-fl">–</div></div>
+            <div class="stat m"><div class="k">½ log(p / (1−p))</div><div class="v" id="pm-fs">–</div></div>
+          </div>
+          <p class="hint" style="margin-top:12px">The minimizers are found numerically on a grid, not by the formula, so the match is a real check.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>AdaBoost.M1 (Algorithm 18.1) on a 2-D problem</h4>
+      <p class="hint">120 training points: class +1 (red) inside a circle, −1 (blue) outside. No single stump can draw a circle. Each round fits a stump to the <b>weighted</b> data (minimizing weighted error, Eq. 18.29). Dot area is proportional to the weight. The newest stump's line is drawn in black, and the points it gets wrong are ringed. The shading is the sign of the strong learner \(f_m\).</p>
+      <div class="btns" style="margin-top:0"><span class="lab">weak learner</span><span class="seg" id="ab-depth"><button data-v="1" class="on">stump</button><button data-v="2">depth-2 tree</button></span></div>
+      <div class="btns"><button class="b pri" id="ab-step">Round m+1</button><button class="b" id="ab-10">+10 rounds</button><button class="b" id="ab-100">+100 rounds</button><button class="b" id="ab-reset">Reset</button></div>
+      <div class="two" style="margin-top:10px">
+        <div><svg class="plot" id="ab-map" viewBox="0 0 380 380" aria-label="Training points sized by weight, with the boosted decision region"></svg></div>
+        <div>
+          <div class="algo" id="ab-algo"></div>
+          <div class="readout" style="margin-top:6px">
+            <div class="stat"><div class="k">round m</div><div class="v" id="ab-m">0</div></div>
+            <div class="stat a"><div class="k">weighted err_m</div><div class="v" id="ab-err">–</div></div>
+            <div class="stat m"><div class="k">α_m</div><div class="v" id="ab-al">–</div></div>
+            <div class="stat r"><div class="k">mistake weight × e^α</div><div class="v" id="ab-mul">–</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="keyrow" style="margin-top:12px"><span><i style="background:var(--c4)"></i>training error of f_m</span><span><i style="background:var(--c0)"></i>test error</span><span><i class="d" style="color:var(--c3)"></i>(1/N) Σ e<sup>−ỹ f_m</sup> (upper bound)</span><span><i class="c" style="background:var(--muted)"></i>err_m of each stump</span></div>
+      <svg class="plot" id="ab-curve" viewBox="0 0 640 220" aria-label="Training error, test error, exponential loss bound and weak learner errors by round"></svg>
+      <div class="readout">
+        <div class="stat m"><div class="k">train error of f_m</div><div class="v" id="ab-tr">–</div></div>
+        <div class="stat r"><div class="k">test error of f_m</div><div class="v" id="ab-te">–</div></div>
+        <div class="stat a"><div class="k">exp-loss bound</div><div class="v" id="ab-bd">–</div></div>
+        <div class="stat"><div class="k">err of F_m on new weights</div><div class="v" id="ab-half">–</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Equations 18.20–18.35</h3>
+    <div class="mathcard">
+      <h4>Why exponential loss is a reasonable choice</h4>
+      <ol class="steps">
+        <li><div>If \(F\) is half the log odds, the class probability is
+          \[ p(y=1\mid\mathbf x)=\frac{e^{F(\mathbf x)}}{e^{-F(\mathbf x)}+e^{F(\mathbf x)}}=\frac{1}{1+e^{-2F(\mathbf x)}} \tag{18.20} \]
+          and the negative log likelihood is \(\ell(\tilde y,F)=\log(1+e^{-2\tilde yF})\) (18.21).</div></li>
+        <li><div>Expected exponential loss at a fixed \(\mathbf x\), and its derivative:
+          \[ \begin{aligned}\frac{\partial}{\partial F}\mathbb E\big[e^{-\tilde yF}\mid\mathbf x\big]&=\frac{\partial}{\partial F}\Big[p(\tilde y=1|\mathbf x)e^{-F}+p(\tilde y=-1|\mathbf x)e^{F}\Big]\\&=-p(\tilde y=1|\mathbf x)e^{-F}+p(\tilde y=-1|\mathbf x)e^{F}\end{aligned} \tag{18.23–24} \]</div></li>
+        <li><div>Set it to zero:
+          \[ \frac{p(\tilde y=1\mid\mathbf x)}{p(\tilde y=-1\mid\mathbf x)}=e^{2F(\mathbf x)}\quad\Longrightarrow\quad F^*=\tfrac12\log\frac{p}{1-p}. \tag{18.25} \]
+          <span class="why">The same half-log-odds that log loss targets. With infinite data both losses aim at the same function; they differ in how they treat finite samples and outliers.</span></div></li>
+      </ol>
+      <h4>Solving step m (discrete AdaBoost)</h4>
+      <ol class="steps">
+        <li><div>Pull the old model out of the exponent:
+          \[ \begin{aligned}L_m(F)&=\sum_{i=1}^N\exp\!\big[-\tilde y_i(f_{m-1}(\mathbf x_i)+\beta F(\mathbf x_i))\big]\\&=\sum_{i=1}^N\omega_{i,m}\exp(-\beta\tilde y_iF(\mathbf x_i))\end{aligned} \tag{18.26} \]
+          <span class="why">\(\omega_{i,m}=e^{-\tilde y_if_{m-1}(\mathbf x_i)}\) is large exactly for points the current model gets wrong (negative margin).</span></div></li>
+        <li><div>With \(F\in\{-1,+1\}\), \(\tilde yF=+1\) when correct and \(-1\) when wrong:
+          \[ \begin{aligned}L_m&=e^{-\beta}\!\!\sum_{\tilde y_i=F(\mathbf x_i)}\!\!\omega_{i,m}+e^{\beta}\!\!\sum_{\tilde y_i\ne F(\mathbf x_i)}\!\!\omega_{i,m}\\&=(e^\beta-e^{-\beta})\sum_i\omega_{i,m}\mathbb I(\tilde y_i\ne F(\mathbf x_i))+e^{-\beta}\sum_i\omega_{i,m}\end{aligned} \tag{18.27–28} \]</div></li>
+        <li><div>For \(\beta\gt0\), \(e^\beta-e^{-\beta}\gt0\), so the best weak learner minimizes weighted error:
+          \[ F_m=\arg\min_F\sum_i\omega_{i,m}\mathbb I(\tilde y_i\ne F(\mathbf x_i)) \tag{18.29} \]</div></li>
+        <li><div>Divide by \(\sum_i\omega_{i,m}\) and write \(\mathrm{err}_m\) for the weighted error (18.31). Minimize \(e^{-\beta}(1-\mathrm{err}_m)+e^{\beta}\mathrm{err}_m\): the derivative is zero when \(e^{2\beta}=\frac{1-\mathrm{err}_m}{\mathrm{err}_m}\),
+          \[ \beta_m=\frac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m} \tag{18.30} \]
+          <span class="why">Example: err = 0.2 gives \(\beta=\tfrac12\log4=0.693\), \(\alpha=2\beta=1.386\), and mistakes get multiplied by \(e^{1.386}=4\). err = 0.5 gives \(\beta=0\).</span></div></li>
+        <li><div>Update the model, \(f_m=f_{m-1}+\beta_mF_m\) (18.32), and the weights:
+          \[ \begin{aligned}\omega_{i,m+1}&=e^{-\tilde y_if_m(\mathbf x_i)}=\omega_{i,m}e^{-\tilde y_i\beta_mF_m(\mathbf x_i)}\\&=\omega_{i,m}e^{2\beta_m\mathbb I(\tilde y_i\ne F_m(\mathbf x_i))}e^{-\beta_m}\end{aligned} \tag{18.33–34} \]
+          <span class="why">Uses \(-\tilde y_iF_m(\mathbf x_i)=2\mathbb I(\tilde y_i\ne F_m(\mathbf x_i))-1\).</span></div></li>
+        <li><div>\(e^{-\beta_m}\) is the same for every \(i\) and cancels when weights are normalized. With \(\alpha_m=2\beta_m\):
+          \[ \omega_{i,m+1}=\begin{cases}\omega_{i,m}e^{\alpha_m}&\tilde y_i\ne F_m(\mathbf x_i)\\ \omega_{i,m}&\text{otherwise}\end{cases} \tag{18.35} \]
+          and the classifier is \(\operatorname{sgn}\big[\sum_m\alpha_mF_m(\mathbf x)\big]\). <span class="why">Scaling all \(\beta\) by 2 doesn't change the sign.</span></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>Exponential loss and AdaBoost</h3><div class="quizbox" data-quiz="ada"></div></div>
+</section>
+
+<!-- ============ 18.5.4 LogitBoost ============ -->
+<section class="sec" id="logit">
+  <div class="sec-head"><span class="secnum">§18.5.4</span><h2>LogitBoost: log loss, bounded influence, real probabilities</h2></div>
+  <div class="intro">
+    <p>Exponential loss has two problems. It blows up for negative margins, so it puts a lot of weight on misclassified examples, and <b>mislabeled</b> ones (outliers) can pull the fit around. And \(e^{-\tilde yf}\) is not the log of any pmf, so \(f\) is not trained as a probability model.</p>
+    <p>Log loss fixes both: it grows only <b>linearly</b> for large negative margins, and probabilities come straight out of the fitted function:</p>
+    <p>\[ p(y=1\mid\mathbf x)=\frac{e^{f(\mathbf x)}}{e^{-f(\mathbf x)}+e^{f(\mathbf x)}}=\frac1{1+e^{-2f(\mathbf x)}} \tag{18.36} \]</p>
+    <p>The stage-\(m\) objective is \(L_m(F)=\sum_i\log\big[1+\exp\big(-2\tilde y_i(f_{m-1}(\mathbf x_i)+F(\mathbf x_i))\big)\big]\) (18.37). One Newton step on it (as in IRLS) turns each round into a <b>weighted least squares</b> fit. That's <b>LogitBoost</b> [FHT00].</p>
+  </div>
+
+  <div class="block lv"><h3 class="blabel"><span class="tag">Explain it</span>At your level</h3>
+    <div class="lvcard" data-lv>
+      <div data-l="1">
+        <p class="big">What if some answers in the answer key are just wrong?</p>
+        <p>AdaBoost keeps puffing up every example it misses. If the answer key has a typo, the team can never get that example "right," so it keeps puffing up and up until it's huge and the team spends all its effort on a mistake.</p>
+        <p>LogitBoost is calmer. It still cares more about missed examples, but there's a limit on how much any one example can matter. A typo can't take over the whole practice.</p>
+      </div>
+      <div data-l="2">
+        <p>Look at Fig. 18.7 again: on the left, the exponential loss shoots up like a rocket, while log loss climbs along a straight line. The slope of the loss is how hard the next round pulls toward that example. Exponential: the pull grows without limit. Log loss: the pull tops out.</p>
+        <p>Bonus: with log loss, \(f\) is half the log odds, so \(1/(1+e^{-2f})\) is a real probability you can trust, like "73% spam." In the Play box, flip some training labels and compare the two methods.</p>
+      </div>
+      <div data-l="3">
+        <p>Influence of example \(i\) = \(|\partial\ell/\partial f(\mathbf x_i)|\). Exp loss: \(e^{-m_i}\), unbounded as the margin \(m_i\to-\infty\). Log loss \(\log(1+e^{-2m})\): \(2/(1+e^{2m_i})\le2\). A mislabeled point sits at negative margin forever, so AdaBoost keeps raising its weight.</p>
+        <p>LogitBoost round (Algorithm 18.2): with \(y^*_i=(\tilde y_i+1)/2\in\{0,1\}\) and \(p_i\) from 18.36, the Newton step for 18.37 is a weighted regression of working responses \(z_i=\frac{y^*_i-p_i}{p_i(1-p_i)}\) with weights \(w_i=p_i(1-p_i)\). Fit \(F_m\) by weighted least squares, update \(f\leftarrow f+\tfrac12F_m\), recompute \(p_i\).</p>
+        <p>The key subroutine is a weak learner that solves weighted least squares, e.g. a regression tree with sample weights.</p>
+      </div>
+      <div data-l="4">
+        <ul>
+          <li><b>Newton derivation.</b> Let \(g(F)=\sum_i\ell_i(f_{m-1}+F)\) with \(\ell_i\) the Bernoulli NLL in \(2f\). The pointwise gradient and Hessian are \(-2(y^*_i-p_i)\) and \(4p_i(1-p_i)\). The Newton step \(F=-g'/g''\) is \(\tfrac12z_i\), and projecting onto the weak-learner class with Hessian weights gives the weighted LS fit (the IRLS step of logistic regression, §10.2.6).</li>
+          <li><b>Numerics.</b> \(z_i\) explodes as \(p_i\to0\) or \(1\). FHT00 cap \(|z_i|\le z_{\max}\in[2,4]\); this page uses 4. Modern GBDT (XGBoost) uses the same gradient/Hessian per leaf: leaf value \(-\sum g_i/(\sum h_i+\lambda)\).</li>
+          <li><b>Multiclass</b>: symmetric multinomial LogitBoost fits \(K\) functions with \(\sum_kf_k=0\).</li>
+          <li><b>Robustness has limits.</b> Any convex margin loss can be broken by random label noise (Long &amp; Servedio 2010); bounded influence helps a lot in practice but isn't a guarantee.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="block play"><h3 class="blabel"><span class="tag">Play</span>Flip some labels and compare AdaBoost with LogitBoost</h3>
+    <div class="panel">
+      <h4>Influence: how hard one example pulls on the next fit</h4>
+      <p class="hint">The influence of example \(i\) is the slope of its loss, \(|\partial\ell/\partial f(\mathbf x_i)|\), as a function of its margin. Drag the margin to a badly misclassified value and compare.</p>
+      <div class="ctrl"><label for="if-m">margin ỹ f(x)</label><input type="range" id="if-m" min="-4" max="3" step="0.05" value="-3"><output id="if-m-o">−3.00</output></div>
+      <div class="keyrow"><span><i style="background:var(--c0)"></i>exp loss: e<sup>−m</sup></span><span><i style="background:var(--c2)"></i>log loss log(1 + e<sup>−2m</sup>): 2 / (1 + e<sup>2m</sup>)</span></div>
+      <div class="two">
+        <svg class="plot" id="if-plot" viewBox="0 0 400 240" aria-label="Influence versus margin for exponential and log loss"></svg>
+        <div class="readout" style="margin-top:0;align-self:center">
+          <div class="stat r"><div class="k">exp-loss influence</div><div class="v" id="if-e">–</div></div>
+          <div class="stat g"><div class="k">log-loss influence</div><div class="v" id="if-l">–</div></div>
+          <div class="stat"><div class="k">ratio</div><div class="v" id="if-r">–</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Both algorithms on noisy labels</h4>
+      <p class="hint">The circle problem again (200 training points) with a share of training labels flipped at random; flipped points are ringed. Both methods use stumps for 200 rounds, and test labels are clean. Dot area shows each point's influence on the <b>same absolute scale</b> in both maps.</p>
+      <div class="ctrl"><label for="lb-noise">flipped labels</label><input type="range" id="lb-noise" min="0" max="0.25" step="0.01" value="0.1"><output id="lb-noise-o">10%</output></div>
+      <div class="ctrl"><label for="lb-m">round m</label><input type="range" id="lb-m" min="1" max="200" step="1" value="200"><output id="lb-m-o">200</output></div>
+      <div class="two-even" style="margin-top:8px">
+        <div><p class="cap">AdaBoost (exp loss): influence e<sup>−ỹf</sup></p><svg class="plot" id="lb-ada" viewBox="0 0 340 340" aria-label="AdaBoost decision region with influence-sized points"></svg></div>
+        <div><p class="cap">LogitBoost (log loss): influence 2|y* − p|</p><svg class="plot" id="lb-lgt" viewBox="0 0 340 340" aria-label="LogitBoost decision region with influence-sized points"></svg></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table class="t wrap"><thead><tr><th></th><th>AdaBoost</th><th>LogitBoost</th></tr></thead><tbody>
+        <tr><td>largest influence of any point</td><td id="lb-x1">–</td><td id="lb-x2">–</td></tr>
+        <tr><td>mean influence, flipped points</td><td id="lb-s1">–</td><td id="lb-s2">–</td></tr>
+        <tr><td>test error</td><td id="lb-e1">–</td><td id="lb-e2">–</td></tr>
+        <tr><td>test log loss of p from Eq. 18.36 (nats)</td><td id="lb-l1">–</td><td id="lb-l2">–</td></tr>
+      </tbody></table></div>
+      <div class="two-even" style="margin-top:14px">
+        <div><p class="cap">test error vs m</p><svg class="plot" id="lb-err" viewBox="0 0 400 200" aria-label="Test error by round"></svg></div>
+        <div><p class="cap">test log loss vs m (nats)</p><svg class="plot" id="lb-ll" viewBox="0 0 400 200" aria-label="Test log loss by round"></svg></div>
+      </div>
+      <div class="keyrow"><span><i style="background:var(--c0)"></i>AdaBoost</span><span><i style="background:var(--c2)"></i>LogitBoost</span></div>
+      <p class="hint" style="margin-top:10px">Things to notice: a flipped point keeps a negative margin, so its AdaBoost influence \(e^{-\tilde yf}\) has no ceiling and creeps up as rounds pile on, while no LogitBoost point can ever pass 2. With 5–20% flipped labels, LogitBoost ends with lower test error here (at 25% both struggle and the order flips). The gap is modest on this easy problem, and log loss isn't magic: run long enough and LogitBoost fits some flipped points too, and under <i>both</i> losses the relative weight shifts toward the hardest points as the clean ones get fit.</p>
+    </div>
+  </div>
+
+  <div class="block math"><h3 class="blabel"><span class="tag">Math, slowly</span>Equations 18.36–18.37 and Algorithm 18.2</h3>
+    <div class="mathcard">
+      <ol class="steps">
+        <li><div>Influence = slope of the loss in \(f\), at margin \(m=\tilde yf\):
+          \[ \Big|\frac{\partial}{\partial f}e^{-\tilde yf}\Big|=e^{-m}\qquad\text{vs}\qquad\Big|\frac{\partial}{\partial f}\log(1+e^{-2\tilde yf})\Big|=\frac{2}{1+e^{2m}}\le2. \]
+          <span class="why">At \(m=-3\): \(e^{3}\approx20\) for exp loss, \(2/(1+e^{-6})\approx2\) for log loss. A flipped label stuck at margin −3 gets 10× more pull under AdaBoost.</span></div></li>
+        <li><div>Probabilities from the score (18.36): \(p(y=1|\mathbf x)=1/(1+e^{-2f(\mathbf x)})\). With log loss this is the model being fit, so it is calibrated in the large-sample limit.</div></li>
+        <li><div>Stage-\(m\) objective (18.37): \(L_m(F)=\sum_i\log\big[1+\exp\big(-2\tilde y_i(f_{m-1}(\mathbf x_i)+F(\mathbf x_i))\big)\big]\). Newton's method around \(F=0\): with \(y_i^*=\frac{\tilde y_i+1}2\), \(p_i=\sigma(2f_{m-1}(\mathbf x_i))\),
+          \[ \frac{\partial L_m}{\partial F_i}\Big|_0=-2(y_i^*-p_i),\qquad\frac{\partial^2L_m}{\partial F_i^2}\Big|_0=4p_i(1-p_i). \]</div></li>
+        <li><div>A second-order expansion is a weighted least squares problem:
+          \[ L_m(F)\approx\text{const}+2\sum_ip_i(1-p_i)\Big(F(\mathbf x_i)-\tfrac12z_i\Big)^2,\qquad z_i=\frac{y^*_i-p_i}{p_i(1-p_i)}. \]
+          <span class="why">Fit \(F_m\) to targets \(z_i\) with weights \(w_i=p_i(1-p_i)\), then add half of it (the \(\tfrac12\) in \(\tfrac12z_i\)).</span></div></li>
+      </ol>
+      <div class="algo">
+        <div><b>Algorithm 18.2: LogitBoost</b> (binary, [FHT00])</div>
+        <div><span class="ln">1</span>\(w_i=1/N,\ p_i=1/2,\ f(\mathbf x)=0\)</div>
+        <div><span class="ln">2</span>for \(m=1:M\) do</div>
+        <div><span class="ln">3</span>&nbsp;&nbsp;Compute working response \(z_i=\dfrac{y_i^*-p_i}{p_i(1-p_i)}\)</div>
+        <div><span class="ln">4</span>&nbsp;&nbsp;Compute weights \(w_i=p_i(1-p_i)\)</div>
+        <div><span class="ln">5</span>&nbsp;&nbsp;\(F_m=\arg\min_F\sum_iw_i\,(z_i-F(\mathbf x_i))^2\)</div>
+        <div><span class="ln">6</span>&nbsp;&nbsp;Update \(f(\mathbf x)\leftarrow f(\mathbf x)+\tfrac12F_m(\mathbf x)\)</div>
+        <div><span class="ln">7</span>&nbsp;&nbsp;Compute \(p_i=1/(1+\exp(-2f(\mathbf x_i)))\)</div>
+        <div><span class="ln">8</span>Return \(f(\mathbf x)=\operatorname{sgn}\big[\sum_{m=1}^MF_m(\mathbf x)\big]\)</div>
+      </div>
+      <div class="note">The weight \(p_i(1-p_i)\) is <i>small</i> for a confidently misclassified point, but its working response \(z_i\approx\pm1/\min(p_i,1-p_i)\) is huge. Their product \(w_iz_i=y^*_i-p_i\) is (half) the gradient, and it never exceeds 1 in size: that is the bounded influence. In practice \(z_i\) is also capped (here at ±4) to keep the least squares fit numerically stable.</div>
+    </div>
+  </div>
+
+  <div class="block quiz"><h3 class="blabel"><span class="tag">Check yourself</span>LogitBoost</h3><div class="quizbox" data-quiz="logit"></div></div>
+</section>
+
+<!-- ============ Cheat sheet ============ -->
+<section class="sec" id="cheat">
+  <div class="sec-head"><span class="secnum">—</span><h2>Cheat sheet</h2></div>
+  <div class="block">
+    <div class="panel scroll">
+      <table class="vs">
+        <thead><tr><th></th><th>In words</th><th>In symbols</th></tr></thead>
+        <tbody>
+          <tr><th>Random forest</th><td>Bagging + a fresh random feature subset at every node.</td><td>\(\arg\min_{j\in S_i}\min_{t\in\mathcal T_j}\dots,\ |S_i|=m\)</td></tr>
+          <tr><th>Choosing m</th><td>√D for classification, D/3 for regression; m = D is bagging.</td><td>tune by out-of-bag error</td></tr>
+          <tr><th>Why it works</th><td>Lower tree correlation lowers the variance floor.</td><td>\(\rho\sigma^2+\frac{1-\rho}M\sigma^2\)</td></tr>
+          <tr><th>Spam data</th><td>4601 emails, 57 features: 48 words, 6 chars, CAPAVE/MAX/TOT.</td><td>Fig. 18.5: boosting < RF < bagging</td></tr>
+          <tr><th>Additive model (18.15)</th><td>Weighted sum of learned basis functions.</td><td>\(f=\sum_m\beta_mF_m(\mathbf x;\theta_m)\)</td></tr>
+          <tr><th>Empirical loss (18.16)</th><td>What every method here minimizes.</td><td>\(\sum_i\ell(y_i,f(\mathbf x_i))\)</td></tr>
+          <tr><th>Bagging vs boosting</th><td>Independent trees cut variance; sequential trees cut bias.</td><td>parallel vs sequential</td></tr>
+          <tr><th>Weak → strong</th><td>Better than chance on every reweighting ⇒ training error → 0.</td><td>\(\le e^{-2\sum_m\gamma_m^2}\)</td></tr>
+          <tr><th>Stagewise (18.17–18)</th><td>Optimize only the new term; freeze old ones.</td><td>\(f_m=f_{m-1}+\beta_mF_m\)</td></tr>
+          <tr><th>LS boosting (18.19)</th><td>Fit the next tree to the residuals, β = 1.</td><td>\(r_{im}=y_i-f_{m-1}(\mathbf x_i)\)</td></tr>
+          <tr><th>Margin</th><td>Label × score; > 0 means correct.</td><td>\(m(\mathbf x)=\tilde yF(\mathbf x)\)</td></tr>
+          <tr><th>Log loss (18.21)</th><td>NLL when F is half the log odds.</td><td>\(\log(1+e^{-2\tilde yF})\)</td></tr>
+          <tr><th>Exp loss (18.22)</th><td>Smooth bound on 0-1; same population minimizer.</td><td>\(e^{-\tilde yF}\to F^*=\tfrac12\log\frac{p}{1-p}\)</td></tr>
+          <tr><th>AdaBoost weights (18.26)</th><td>Exp loss of the current model on each point.</td><td>\(\omega_{i,m}=e^{-\tilde y_if_{m-1}(\mathbf x_i)}\)</td></tr>
+          <tr><th>Weak learner (18.29)</th><td>Minimize weighted misclassification.</td><td>\(\sum_i\omega_{i,m}\mathbb I(\tilde y_i\ne F(\mathbf x_i))\)</td></tr>
+          <tr><th>Step size (18.30)</th><td>Bigger for more accurate learners; 0 at err = ½.</td><td>\(\beta_m=\frac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m},\ \alpha_m=2\beta_m\)</td></tr>
+          <tr><th>Reweighting (18.35)</th><td>Multiply mistakes by e^α, leave the rest.</td><td>\(\omega_i\leftarrow\omega_ie^{\alpha_m\mathbb I(\tilde y_i\ne F_m(\mathbf x_i))}\)</td></tr>
+          <tr><th>Classifier</th><td>Weighted vote of the weak learners.</td><td>\(\operatorname{sgn}\sum_m\alpha_mF_m(\mathbf x)\)</td></tr>
+          <tr><th>Multiclass</th><td>SAMME: AdaBoost with multiclass exp loss (sklearn).</td><td>\(+\log(K-1)\) in \(\alpha_m\)</td></tr>
+          <tr><th>Exp loss weakness</th><td>Outliers get exponentially large weight; no pmf.</td><td>influence \(e^{-m}\)</td></tr>
+          <tr><th>Probabilities (18.36)</th><td>From a log-loss fit.</td><td>\(p(y=1|\mathbf x)=1/(1+e^{-2f(\mathbf x)})\)</td></tr>
+          <tr><th>LogitBoost (Alg. 18.2)</th><td>Newton step = weighted LS on working responses; f += ½F.</td><td>\(z_i=\frac{y^*_i-p_i}{p_i(1-p_i)},\ w_i=p_i(1-p_i)\)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <footer>Built as a study companion for Murphy, <i>Probabilistic Machine Learning: An Introduction</i> (MIT Press, CC-BY-NC-ND), §18.4–18.5.4. All data on this page are synthetic and generated in the page from fixed seeds. The "spam-like" set only borrows feature names from the HP spam data; its values are simulated. The circle and quadratic sets follow standard textbook toy problems (Fig. 18.6 follows Géron's setup). Every tree, forest and boosted ensemble is fit live in your browser with an exact weighted CART split search.</footer>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function txt(parent, x, y, s, cls, extra) { const t = el('text', Object.assign({ x, y, class: cls || 'ax' }, extra || {}), parent); t.textContent = s; return t; }
+const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const neg = s => String(s).replace(/^-/, '−');
+const f1 = v => neg(v.toFixed(1)), f2 = v => neg((Math.abs(v) < 5e-3 ? 0 : v).toFixed(2)), f3 = v => neg((Math.abs(v) < 5e-4 ? 0 : v).toFixed(3));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pathOf = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+const svgPt = (svg, evt) => { const p = svg.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); }
+const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+const renderers = [];
+const pct = v => (100 * v).toFixed(1) + '%';
+const range = n => Array.from({ length: n }, (_, i) => i);
+const SUB = ['₁', '₂', '₃'];
+
+function frame(o) {
+  const L = o.l, R = o.W - o.r, T = o.t, B = o.H - o.b;
+  return { L, R, T, B, X: lin(o.x[0], o.x[1], L, R), Y: lin(o.y[0], o.y[1], B, T), iX: lin(L, R, o.x[0], o.x[1]), iY: lin(B, T, o.y[0], o.y[1]), dom: [o.x[0], o.x[1], o.y[0], o.y[1]] };
+}
+const fmtT = v => neg(String(+(+v).toFixed(3)));
+function axes(svg, f, o) {
+  (o.xt || []).forEach(v => { el('line', { x1: f.X(v), x2: f.X(v), y1: f.T, y2: f.B, class: 'gridl' }, svg); txt(svg, f.X(v), f.B + 15, (o.fx || fmtT)(v), 'ax', { 'text-anchor': 'middle' }); });
+  (o.yt || []).forEach(v => { el('line', { x1: f.L, x2: f.R, y1: f.Y(v), y2: f.Y(v), class: 'gridl' }, svg); txt(svg, f.L - 6, f.Y(v) + 4, (o.fy || fmtT)(v), 'ax', { 'text-anchor': 'end' }); });
+  el('line', { x1: f.L, x2: f.R, y1: f.B, y2: f.B, class: 'base' }, svg);
+  el('line', { x1: f.L, x2: f.L, y1: f.T, y2: f.B, class: 'base' }, svg);
+  if (o.xl) txt(svg, (f.L + f.R) / 2, f.B + 31, o.xl, 'axl', { 'text-anchor': 'middle' });
+  if (o.yl) txt(svg, f.L - 36, (f.T + f.B) / 2, o.yl, 'axl', { 'text-anchor': 'middle', transform: `rotate(-90 ${f.L - 36} ${(f.T + f.B) / 2})` });
+}
+function niceCeil(v) { const e = 10 ** Math.floor(Math.log10(v)); for (const m of [1, 2, 2.5, 5, 10]) if (m * e >= v - 1e-12) return m * e; return 10 * e; }
+function ticksAB(a, b, n) {
+  const s = niceCeil((b - a) / (n || 4)), out = [];
+  for (let v = Math.ceil(a / s - 1e-9) * s; v <= b + 1e-9; v += s) out.push(+v.toFixed(6));
+  return out;
+}
+let CLIPN = 0;
+function clip(svg, f) {
+  const id = 'cp' + (CLIPN++);
+  const cp = el('clipPath', { id }, el('defs', {}, svg));
+  el('rect', { x: f.L, y: f.T, width: f.R - f.L, height: f.B - f.T }, cp);
+  return el('g', { 'clip-path': `url(#${id})` }, svg);
+}
+function raster(svg, f, gw, gh, fill) {
+  const cv = document.createElement('canvas'); cv.width = gw; cv.height = gh;
+  const ctx = cv.getContext('2d'), im = ctx.createImageData(gw, gh);
+  for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+    const c = fill(i, gh - 1 - j), k = 4 * (j * gw + i);
+    if (!c) continue;
+    im.data[k] = c[0]; im.data[k + 1] = c[1]; im.data[k + 2] = c[2]; im.data[k + 3] = Math.round(255 * (c[3] == null ? 1 : c[3]));
+  }
+  ctx.putImageData(im, 0, 0);
+  return el('image', { x: f.L, y: f.T, width: f.R - f.L, height: f.B - f.T, href: cv.toDataURL(), preserveAspectRatio: 'none' }, svg);
+}
+function onDrag(svg, down, move, up) {
+  let active = false;
+  svg.addEventListener('pointerdown', e => { if (e.button > 0) return; const r = down(svgPt(svg, e), e); if (r === false) return; active = true; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
+  svg.addEventListener('pointermove', e => { if (active) move(svgPt(svg, e), e); });
+  const end = () => { if (active) { active = false; if (up) up(); } };
+  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+}
+function slider(id, fmt, cb) {
+  const s = $('#' + id), o = $('#' + id + '-o');
+  const go = () => { o.textContent = fmt(+s.value); if (cb) cb(+s.value); };
+  s.addEventListener('input', go); o.textContent = fmt(+s.value);
+  return { get v() { return +s.value; }, set(v) { s.value = v; o.textContent = fmt(+s.value); }, el: s };
+}
+function segm(id, cb) {
+  const s = $('#' + id);
+  s.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $$('button', s).forEach(x => x.classList.toggle('on', x === b)); cb(b.dataset.v, b); });
+}
+function segSet(id, val) { $$('#' + id + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === val)); }
+
+/* class marks: 0 = circle (c0), 1 = square (c1), 2 = triangle (c2) */
+const CLS = ['--c0', '--c1', '--c2'];
+function mark(g, x, y, c, r, extra) {
+  r = r || 4.6; const fill = `var(${CLS[c]})`, a = Object.assign({ fill, stroke: 'var(--surface)', 'stroke-width': 1.3 }, extra || {});
+  if (c === 0) return el('circle', Object.assign({ cx: x, cy: y, r }, a), g);
+  if (c === 1) return el('rect', Object.assign({ x: x - r * .88, y: y - r * .88, width: r * 1.76, height: r * 1.76, rx: 1 }, a), g);
+  return el('path', Object.assign({ d: `M${x},${y - r * 1.15}L${x + r * 1.05},${y + r * .75}L${x - r * 1.05},${y + r * .75}Z` }, a), g);
+}
+function ring(g, x, y, r, col) { return el('circle', { cx: x, cy: y, r: r || 9, fill: 'none', stroke: col || 'var(--ink)', 'stroke-width': 1.7 }, g); }
+function star(g, x, y, r) {
+  const p = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, q = k % 2 ? r * .45 : r; p.push([x + q * Math.cos(a), y + q * Math.sin(a)]); }
+  el('path', { d: pathOf(p) + 'Z', fill: 'var(--red)', stroke: 'var(--surface)', 'stroke-width': 1.2 }, g);
+}
+function cross(g, x, y, s) {
+  s = s || 7; const d = `M${x - s},${y - s}L${x + s},${y + s}M${x - s},${y + s}L${x + s},${y - s}`;
+  el('path', { d, stroke: 'var(--surface)', 'stroke-width': 7, 'stroke-linecap': 'round' }, g);
+  el('path', { d, stroke: 'var(--ink)', 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+}
+
+
+/* ---------- small drawing helpers for this lab ---------- */
+function poly(g, pts, col, w, extra) { return el('path', Object.assign({ d: pathOf(pts), fill: 'none', stroke: col, 'stroke-width': w || 2, 'stroke-linejoin': 'round' }, extra || {}), g); }
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+const sigm = z => z >= 0 ? 1 / (1 + Math.exp(-z)) : Math.exp(z) / (1 + Math.exp(z));
+const f4 = v => neg(v.toFixed(4));
+function soft(name, a) { const c = hexRgb(cssv(name)); return [c[0], c[1], c[2], a]; }
+function shuffleIdx(n, r) { const ix = range(n); for (let j = n - 1; j > 0; j--) { const k = Math.floor(r() * (j + 1)); [ix[j], ix[k]] = [ix[k], ix[j]]; } return ix; }
+function whenSeen(node, cb) {
+  if (!('IntersectionObserver' in window)) { cb(); return; }
+  const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); cb(); } }, { rootMargin: '200px' });
+  io.observe(node);
+}
+
+/* ---------- weighted CART on real-valued targets ----------
+   Minimizes weighted squared error (crit 'mse'; on 0/1 or ±1 labels this is the Gini criterion)
+   or weighted misclassification of ±1 labels (crit 'err', Eq. 18.29). Leaf value = weighted mean.
+   opt: maxDepth, minLeaf, mtry (features searched per node; 0 = all), r (rng for mtry)          */
+function growTree(X, y, w, opt) {
+  const D = X[0].length, crit = opt.crit || 'mse', minLeaf = opt.minLeaf || 1, maxDepth = opt.maxDepth == null ? 99 : opt.maxDepth;
+  const cost = crit === 'err'
+    ? (sw, swy) => Math.min((sw + swy) / 2, (sw - swy) / 2)
+    : (sw, swy, swy2) => sw > 0 ? swy2 - swy * swy / sw : 0;
+  const idx0 = []; for (let i = 0; i < X.length; i++) if (w[i] > 0) idx0.push(i);
+  const feats = range(D);
+  function node(idx, depth) {
+    let sw = 0, swy = 0, swy2 = 0;
+    for (const i of idx) { sw += w[i]; swy += w[i] * y[i]; swy2 += w[i] * y[i] * y[i]; }
+    const nd = { v: sw > 0 ? swy / sw : 0, n: idx.length };
+    if (depth >= maxDepth || idx.length < 2 * minLeaf) return nd;
+    const c0 = cost(sw, swy, swy2);
+    if (c0 <= 1e-12) return nd;
+    let fs = feats;
+    if (opt.mtry && opt.mtry < D) { fs = feats.slice(); for (let j = 0; j < opt.mtry; j++) { const k = j + Math.floor(opt.r() * (D - j)); [fs[j], fs[k]] = [fs[k], fs[j]]; } fs = fs.slice(0, opt.mtry); }
+    let best = null;
+    for (const f of fs) {
+      const s = idx.slice().sort((a, b) => X[a][f] - X[b][f]);
+      let lw = 0, ly = 0, ly2 = 0;
+      for (let k = 0; k < s.length - 1; k++) {
+        const i = s[k]; lw += w[i]; ly += w[i] * y[i]; ly2 += w[i] * y[i] * y[i];
+        if (k + 1 < minLeaf || s.length - k - 1 < minLeaf) continue;
+        const a = X[i][f], b = X[s[k + 1]][f]; if (a === b) continue;
+        const c = cost(lw, ly, ly2) + cost(sw - lw, swy - ly, swy2 - ly2);
+        if (!best || c < best.c - 1e-12) best = { c, f, t: (a + b) / 2 };
+      }
+    }
+    if (!best || best.c >= c0 - 1e-12) return nd;
+    nd.f = best.f; nd.t = best.t;
+    const Li = [], Ri = []; for (const i of idx) (X[i][best.f] <= best.t ? Li : Ri).push(i);
+    nd.L = node(Li, depth + 1); nd.R = node(Ri, depth + 1);
+    return nd;
+  }
+  return node(idx0, 0);
+}
+function predTree(nd, x) { while (nd.L) nd = x[nd.f] <= nd.t ? nd.L : nd.R; return nd.v; }
+function signTree(nd) { if (nd.L) { signTree(nd.L); signTree(nd.R); } else nd.v = nd.v > 0 ? 1 : -1; return nd; }
+function scaleTree(nd, s) { if (nd.L) { scaleTree(nd.L, s); scaleTree(nd.R, s); } else nd.v *= s; return nd; }
+/* split segments of a tree on 2-D inputs, clipped to its box */
+function treeSegs(nd, box, out) {
+  out = out || []; if (!nd.L) return out;
+  const [x0, x1, y0, y1] = box;
+  if (nd.f === 0) { out.push([[nd.t, y0], [nd.t, y1]]); treeSegs(nd.L, [x0, nd.t, y0, y1], out); treeSegs(nd.R, [nd.t, x1, y0, y1], out); }
+  else { out.push([[x0, nd.t], [x1, nd.t]]); treeSegs(nd.L, [x0, x1, y0, nd.t], out); treeSegs(nd.R, [x0, x1, nd.t, y1], out); }
+  return out;
+}
+function bootW(n, r) { const w = new Array(n).fill(0); for (let i = 0; i < n; i++) w[Math.floor(r() * n)]++; return w; }
+function corr(a, b) {
+  const n = a.length; let ma = 0, mb = 0; for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+  let sab = 0, saa = 0, sbb = 0; for (let i = 0; i < n; i++) { const da = a[i] - ma, db = b[i] - mb; sab += da * db; saa += da * da; sbb += db * db; }
+  return saa > 0 && sbb > 0 ? sab / Math.sqrt(saa * sbb) : 1;
+}
+function meanCorr(vs) { let s = 0, k = 0; for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) { s += corr(vs[i], vs[j]); k++; } return k ? s / k : NaN; }
+
+/* =====================================================================
+   18.4 Random forests
+   ===================================================================== */
+(function () {
+  /* 30 features: a block of 5 noisy copies of one hidden "spamminess" score z (correlated, like $, ! and "free"),
+     6 features with independent threshold effects, and 19 irrelevant ones. Label = 1[2.5 z + Σ steps + noise > 0.3]. */
+  const D = 30, KB = 5, K = 11, NTR = 300, NTE = 1500, MT = 200;
+  const NAMES = ['char_$', 'char_!', 'free', 'remove', 'money', '000', 'your', 'credit', 'order', 'business', 'internet',
+    'address', 'all', 'our', 'over', 'mail', 'receive', 'will', 'people', 'report', 'email', 'font', 'parts', 'direct', 'original', 'table', 'conference', 'technology', 'data', 'meeting'];
+  function spam(seed, n) {
+    const r = rng(seed), X = [], y = [];
+    for (let i = 0; i < n; i++) {
+      const z = gauss(r), x = [];
+      for (let j = 0; j < D; j++) x.push(j < KB ? Math.max(0, (3 - j / (KB - 1)) * z + gauss(r)) : r() < 0.5 ? 0 : -Math.log(r()));
+      let s = 2.5 * z; for (let j = KB; j < K; j++) s += x[j] > 0.5 ? 1 : -0.4;
+      y.push(s + 0.2 * gauss(r) > 0.3 ? 1 : 0); X.push(x);
+    }
+    return { X, y };
+  }
+  $('#rf-flist').innerHTML = NAMES.map((n, j) => `<span class="${j < K ? 'rel' : ''}">${n}</span>`).join('');
+  const mS = slider('rf-m', v => String(v), () => invalidate('m changed. Run again.'));
+  const seedS = slider('rf-seed', v => String(v), () => { data = null; invalidate('new data. Run again.'); });
+  let data = null, run = null, token = 0;
+  function getData() { if (!data) { const s = seedS.v; data = { tr: spam(100 + s * 7, NTR), te: spam(9000 + s * 13, NTE) }; } return data; }
+  function invalidate(msg) { token++; run = null; $('#rf-status').textContent = msg; $('#rf-prog').style.width = '0'; drawCurve(); drawRoot(); fillTab(); }
+
+  /* one ensemble "lane": bagging or forest or boosting, advanced tree by tree */
+  function lane(kind, mtry, seed) {
+    const { tr, te } = getData(), r = rng(seed);
+    const L = { kind, err: [], acc: new Float64Array(NTE), f: new Float64Array(NTR), single: 0, roots: new Array(D).fill(0), keep: [], n: 0 };
+    L.step = function () {
+      let T, pt;
+      if (kind === 'boost') {
+        const z = [], w = [];
+        for (let i = 0; i < NTR; i++) { const p = sigm(2 * L.f[i]), q = Math.max(p * (1 - p), 1e-6); z.push(clamp((tr.y[i] - p) / q, -4, 4)); w.push(q); }
+        T = growTree(tr.X, z, w, { maxDepth: 2, minLeaf: 5 });
+        for (let i = 0; i < NTR; i++) L.f[i] += 0.2 * 0.5 * predTree(T, tr.X[i]);
+        let e = 0; for (let i = 0; i < NTE; i++) { L.acc[i] += 0.2 * 0.5 * predTree(T, te.X[i]); if ((L.acc[i] > 0 ? 1 : 0) !== te.y[i]) e++; }
+        L.err.push(e / NTE);
+      } else {
+        T = growTree(tr.X, tr.y, bootW(NTR, r), { mtry, r, minLeaf: 1 });
+        if (T.L) L.roots[T.f]++;
+        pt = L.keep.length < 40 ? new Float32Array(NTE) : null;
+        let e = 0, es = 0;
+        for (let i = 0; i < NTE; i++) {
+          const p = predTree(T, te.X[i]); L.acc[i] += p; if (pt) pt[i] = p;
+          if ((L.acc[i] / (L.n + 1) > 0.5 ? 1 : 0) !== te.y[i]) e++;
+          if ((p > 0.5 ? 1 : 0) !== te.y[i]) es++;
+        }
+        if (pt) L.keep.push(pt);
+        L.single += es / NTE; L.err.push(e / NTE);
+      }
+      L.n++;
+    };
+    return L;
+  }
+  function start() {
+    const my = ++token, m = mS.v;
+    run = { bag: lane('bag', D, 11), rf: lane('rf', m, 11), bo: lane('boost', 0, 0), m, done: false };
+    $('#rf-run').disabled = true; $('#rf-status').textContent = 'growing…';
+    (function chunk() {
+      if (my !== token) { $('#rf-run').disabled = false; return; }
+      const t0 = performance.now();
+      while (run.bag.n < MT && performance.now() - t0 < 30) { run.bag.step(); run.rf.step(); run.bo.step(); }
+      $('#rf-prog').style.width = (100 * run.bag.n / MT) + '%';
+      $('#rf-status').textContent = `${run.bag.n} / ${MT} trees of each`;
+      drawCurve();
+      if (run.bag.n < MT) requestAnimationFrame(chunk);
+      else {
+        run.done = true; run.bag.rho = meanCorr(run.bag.keep); run.rf.rho = meanCorr(run.rf.keep);
+        $('#rf-run').disabled = false; $('#rf-status').textContent = `done: m = ${m} for the forest`;
+        drawRoot(); fillTab();
+      }
+    })();
+  }
+  $('#rf-run').addEventListener('click', start);
+
+  function drawCurve() {
+    const svg = $('#rf-curve'); clear(svg);
+    const all = run ? [run.bag.err, run.rf.err, run.bo.err] : [];
+    let lo = 0.05, hi = 0.35;
+    if (run && run.bag.n > 2) { const vals = all.flatMap(a => a.slice(2)); lo = Math.max(0, Math.floor((Math.min(...vals) - 0.015) * 100) / 100); hi = Math.ceil((Math.max(...vals) + 0.015) * 100) / 100; }
+    const f = frame({ W: 640, H: 300, l: 54, r: 16, t: 14, b: 40, x: [0, MT], y: [lo, hi] });
+    axes(svg, f, { xt: [0, 50, 100, 150, 200], yt: ticksAB(lo, hi, 5), xl: 'number of trees', yl: 'test error', fy: v => v.toFixed(2) });
+    if (!run) { txt(svg, (f.L + f.R) / 2, (f.T + f.B) / 2, 'press "Grow 200 trees of each"', 'axl', { 'text-anchor': 'middle' }); return; }
+    const g = clip(svg, f);
+    [[run.bag.err, '--c3'], [run.rf.err, '--c2'], [run.bo.err, '--mi']].forEach(([a, c]) => poly(g, a.map((v, i) => [f.X(i + 1), f.Y(v)]), `var(${c})`, 2.2));
+    const last = a => a.length ? pct(a[a.length - 1]) : '–';
+    $('#rf-eb').textContent = last(run.bag.err); $('#rf-er').textContent = last(run.rf.err); $('#rf-eo').textContent = last(run.bo.err);
+  }
+  function drawRoot() {
+    const svg = $('#rf-root'); clear(svg);
+    if (!run || !run.done) { txt(svg, 200, 130, 'run the experiment above', 'axl', { 'text-anchor': 'middle' }); return; }
+    const tot = a => a.reduce((s, v) => s + v, 0) || 1;
+    const sb = tot(run.bag.roots), sr = tot(run.rf.roots);
+    const order = range(D).sort((a, b) => (run.bag.roots[b] / sb + run.rf.roots[b] / sr) - (run.bag.roots[a] / sb + run.rf.roots[a] / sr)).slice(0, 10);
+    const L = 104, R = 380, rowH = 23, X = lin(0, 1, L, R);
+    order.forEach((j, k) => {
+      const y = 12 + k * rowH;
+      txt(svg, L - 8, y + 12, NAMES[j], 'ax', { 'text-anchor': 'end', 'font-weight': j < K ? 700 : 400, fill: j < K ? 'var(--ink)' : 'var(--muted)' });
+      const pb = run.bag.roots[j] / sb, pr = run.rf.roots[j] / sr;
+      el('rect', { x: L, y, width: Math.max(0.5, X(pb) - L), height: 8, fill: 'var(--c3)', rx: 1.5 }, svg);
+      el('rect', { x: L, y: y + 9, width: Math.max(0.5, X(pr) - L), height: 8, fill: 'var(--c2)', rx: 1.5 }, svg);
+      if (pb > 0.02) txt(svg, X(pb) + 4, y + 7.5, pct(pb).replace('.0%', '%'), 'ax', { 'font-size': 9.5 });
+      if (pr > 0.02) txt(svg, X(pr) + 4, y + 16.5, pct(pr).replace('.0%', '%'), 'ax', { 'font-size': 9.5 });
+    });
+    el('line', { x1: L, x2: L, y1: 6, y2: 12 + order.length * rowH, class: 'base' }, svg);
+    txt(svg, L, 252, 'top 10 features (bold = carries signal)', 'ax');
+  }
+  function fillTab() {
+    const ok = run && run.done, s = (id, v) => { $('#' + id).textContent = v; };
+    s('rf-s1', ok ? pct(run.bag.single / run.bag.n) : '–'); s('rf-s2', ok ? pct(run.rf.single / run.rf.n) : '–');
+    s('rf-r1', ok ? f2(run.bag.rho) : '–'); s('rf-r2', ok ? f2(run.rf.rho) : '–');
+    s('rf-d1', ok ? run.bag.roots.filter(v => v).length : '–'); s('rf-d2', ok ? run.rf.roots.filter(v => v).length : '–');
+    s('rf-t1', ok ? pct(run.bag.err[MT - 1]) : '–'); s('rf-t2', ok ? pct(run.rf.err[MT - 1]) : '–');
+  }
+  drawCurve(); drawRoot(); fillTab();
+  renderers.push(drawCurve, drawRoot);
+  whenSeen($('#rf-curve'), () => { if (!run) start(); });
+
+  /* ---- sweep m ---- */
+  const MS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30], MSW = 100;
+  let sweep = null, swTok = 0;
+  $('#rf-sweep').addEventListener('click', () => {
+    const my = ++swTok; sweep = []; let k = 0, Lc = null;
+    $('#rf-sweep').disabled = true;
+    (function chunk() {
+      if (my !== swTok) return;
+      const t0 = performance.now();
+      while (k < MS.length && performance.now() - t0 < 30) {
+        if (!Lc) Lc = lane('rf', MS[k], 500 + k);
+        Lc.step();
+        if (Lc.n === MSW) { sweep.push({ m: MS[k], err: Lc.err[MSW - 1], single: Lc.single / MSW, rho: meanCorr(Lc.keep.slice(0, 25)) }); Lc = null; k++; }
+      }
+      $('#rf-sw-prog').style.width = (100 * (k + (Lc ? Lc.n / MSW : 0)) / MS.length) + '%';
+      $('#rf-sw-status').textContent = k < MS.length ? `m = ${MS[k]}…` : 'done';
+      drawSweep();
+      if (k < MS.length) requestAnimationFrame(chunk); else $('#rf-sweep').disabled = false;
+    })();
+  });
+  seedS.el.addEventListener('input', () => { swTok++; sweep = null; $('#rf-sweep').disabled = false; $('#rf-sw-status').textContent = 'data changed. Sweep again.'; $('#rf-sw-prog').style.width = '0'; drawSweep(); });
+  function drawSweep() {
+    const svg = $('#rf-sw'); clear(svg);
+    let hi = 0.4; if (sweep && sweep.length) hi = Math.ceil((Math.max(...sweep.map(s => s.single)) + 0.02) * 20) / 20;
+    const f = frame({ W: 640, H: 280, l: 54, r: 50, t: 14, b: 40, x: [0, 31], y: [0, hi] });
+    axes(svg, f, { xt: [1, 5, 10, 15, 20, 25, 30], yt: ticksAB(0, hi, 5), xl: 'm = features searched per split', yl: 'test error', fy: v => v.toFixed(2) });
+    const Yr = lin(0, 1, f.B, f.T);
+    [0, 0.5, 1].forEach(v => txt(svg, f.R + 6, Yr(v) + 4, v.toFixed(1), 'ax'));
+    txt(svg, f.R + 30, (f.T + f.B) / 2, 'ρ', 'axl', { 'text-anchor': 'middle' });
+    el('line', { x1: f.X(Math.sqrt(30)), x2: f.X(Math.sqrt(30)), y1: f.T, y2: f.B, stroke: 'var(--muted)', 'stroke-dasharray': '3 4' }, svg);
+    txt(svg, f.X(Math.sqrt(30)) + 4, f.T + 12, '√D', 'ax');
+    txt(svg, f.X(30) - 4, f.T + 12, 'bagging', 'ax', { 'text-anchor': 'end' });
+    if (!sweep || !sweep.length) { txt(svg, (f.L + f.R) / 2, (f.T + f.B) / 2, 'press "Sweep m"', 'axl', { 'text-anchor': 'middle' }); return; }
+    poly(svg, sweep.map(s => [f.X(s.m), Yr(s.rho)]), 'var(--c4)', 2, { opacity: .6 });
+    poly(svg, sweep.map(s => [f.X(s.m), f.Y(s.single)]), 'var(--c3)', 2, { 'stroke-dasharray': '6 4' });
+    poly(svg, sweep.map(s => [f.X(s.m), f.Y(s.err)]), 'var(--c2)', 2.6);
+    sweep.forEach(s => el('circle', { cx: f.X(s.m), cy: f.Y(s.err), r: 3.5, fill: 'var(--c2)' }, svg));
+    if (sweep.length === MS.length) {
+      const b = sweep.reduce((a, s) => s.err < a.err ? s : a);
+      el('circle', { cx: f.X(b.m), cy: f.Y(b.err), r: 8, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.6 }, svg);
+      txt(svg, f.X(b.m), f.Y(b.err) + 22, `best m = ${b.m}: ${pct(b.err)}`, 'lbl halo', { 'text-anchor': 'middle' });
+    }
+  }
+  drawSweep(); renderers.push(drawSweep);
+
+  /* ---- email features ---- */
+  const MAILS = {
+    spam: 'Dear Friend,\n\nYou have been SELECTED to receive a FREE $1000 gift card!!! Click below to claim your prize NOW. Our offer expires soon, so act today!\n\nMake $$$ from home: 100% GUARANTEED, no credit check, no risk. Your money back if not satisfied.\n\nTo remove yourself from our list, reply REMOVE.',
+    ham: 'Hi George,\n\nRe: the edu grant report. I put the draft on the hp lab server (hpl share). Can you look at section 3 before our meeting on Thursday? The table in the appendix still needs the 1999 numbers from the conference paper.\n\nThanks,\nTom'
+  };
+  const WORDS = [['george', 0.00, 1.27], ['you', 2.26, 1.27], ['your', 1.38, 0.44], ['hp', 0.02, 0.90], ['free', 0.52, 0.07], ['hpl', 0.01, 0.43], ['our', 0.51, 0.18], ['re', 0.13, 0.42], ['edu', 0.01, 0.29], ['remove', 0.28, 0.01]];
+  const ta = $('#ml-text'); ta.value = MAILS.spam;
+  segm('ml-pick', v => { ta.value = MAILS[v]; feat(); });
+  ta.addEventListener('input', feat);
+  function feat() {
+    const s = ta.value, words = (s.match(/[A-Za-z0-9]+/g) || []).map(w => w.toLowerCase()), nw = words.length || 1, nc = s.length || 1;
+    const runs = (s.match(/[A-Z]+/g) || []).map(r => r.length);
+    const rows = WORDS.map(([w, sp, hm]) => [`word_freq_${w}`, 100 * words.filter(x => x === w).length / nw, sp, hm]);
+    rows.push(['char_freq_!', 100 * (s.split('!').length - 1) / nc, 0.51, 0.11]);
+    rows.push(['char_freq_$', 100 * (s.split('$').length - 1) / nc, null, null]);
+    rows.push(['CAPAVE (mean run)', runs.length ? runs.reduce((a, b) => a + b) / runs.length : 0, null, null]);
+    rows.push(['CAPMAX (longest run)', runs.length ? Math.max(...runs) : 0, null, null]);
+    rows.push(['CAPTOT (total capitals)', runs.reduce((a, b) => a + b, 0), null, null]);
+    $('#ml-tab').innerHTML = `<thead><tr><th>feature</th><th>this email</th><th>avg in spam</th><th>avg in email</th></tr></thead><tbody>` +
+      rows.map(([n, v, sp, hm]) => {
+        const lean = sp == null ? '' : Math.abs(v - sp) < Math.abs(v - hm) ? 'color:var(--c0)' : 'color:var(--c1)';
+        return `<tr><td>${n}</td><td style="${lean};font-weight:600">${v.toFixed(2)}</td><td class="mu">${sp == null ? '' : sp.toFixed(2)}</td><td class="mu">${hm == null ? '' : hm.toFixed(2)}</td></tr>`;
+      }).join('') + `</tbody>`;
+  }
+  feat();
+})();
+
+/* =====================================================================
+   18.5 Bagging vs boosting on a 1-D regression
+   ===================================================================== */
+(function () {
+  const Ft = x => Math.sin(2 * Math.PI * x) + 0.5 * x, SD = 0.3, N = 80, NT = 500, MX = 200, GX = range(201).map(i => i / 200);
+  const r = rng(42), X = [], Y = [], XT = [], YT = [];
+  for (let i = 0; i < N; i++) { const x = r(); X.push([x]); Y.push(Ft(x) + SD * gauss(r)); }
+  for (let i = 0; i < NT; i++) { const x = r(); XT.push([x]); YT.push(Ft(x) + SD * gauss(r)); }
+  $('#bv-noise').textContent = (SD * SD).toFixed(3);
+  const cache = {};
+  function build(depth) {
+    if (cache[depth]) return cache[depth];
+    const rb = rng(7), mse = (a, b) => a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0) / a.length;
+    const bag = { tr: new Float64Array(N), te: new Float64Array(NT), gr: new Float64Array(GX.length), hist: [] };
+    const bst = { tr: new Float64Array(N), te: new Float64Array(NT), gr: new Float64Array(GX.length), hist: [] };
+    const snaps = { bag: [], bst: [] };
+    for (let m = 1; m <= MX; m++) {
+      const T = growTree(X, Y, bootW(N, rb), { maxDepth: depth, minLeaf: 1 });
+      X.forEach((x, i) => bag.tr[i] += predTree(T, x)); XT.forEach((x, i) => bag.te[i] += predTree(T, x)); GX.forEach((x, i) => bag.gr[i] += predTree(T, [x]));
+      const res = Y.map((y, i) => y - bst.tr[i]);
+      const S = growTree(X, res, new Array(N).fill(1), { maxDepth: depth, minLeaf: 1 });
+      X.forEach((x, i) => bst.tr[i] += predTree(S, x)); XT.forEach((x, i) => bst.te[i] += predTree(S, x)); GX.forEach((x, i) => bst.gr[i] += predTree(S, [x]));
+      const avg = a => Array.from(a, v => v / m);
+      bag.hist.push([mse(avg(bag.tr), Y), mse(avg(bag.te), YT)]); bst.hist.push([mse(Array.from(bst.tr), Y), mse(Array.from(bst.te), YT)]);
+      snaps.bag.push(avg(bag.gr)); snaps.bst.push(Array.from(bst.gr));
+    }
+    return (cache[depth] = { bag, bst, snaps });
+  }
+  let depth = 1;
+  const Ms = slider('bv-M', v => String(v), draw);
+  segm('bv-depth', v => { depth = +v; draw(); });
+  function panel(svg, curve, col) {
+    clear(svg);
+    const f = frame({ W: 400, H: 260, l: 40, r: 10, t: 10, b: 30, x: [0, 1], y: [-1.6, 2] });
+    axes(svg, f, { xt: [0, 0.25, 0.5, 0.75, 1], yt: [-1, 0, 1, 2], xl: 'x' });
+    const g = clip(svg, f);
+    X.forEach((x, i) => el('circle', { cx: f.X(x[0]), cy: f.Y(Y[i]), r: 2.8, fill: 'var(--muted)', opacity: .55 }, g));
+    poly(g, GX.map(x => [f.X(x), f.Y(Ft(x))]), 'var(--ink)', 1.6, { 'stroke-dasharray': '5 4', opacity: .7 });
+    poly(g, GX.map((x, i) => [f.X(x), f.Y(curve[i])]), col, 2.6);
+  }
+  function draw() {
+    const C = build(depth), M = Ms.v;
+    panel($('#bv-bag'), C.snaps.bag[M - 1], 'var(--c3)');
+    panel($('#bv-bst'), C.snaps.bst[M - 1], 'var(--mi)');
+    const hb = C.bag.hist[M - 1], ho = C.bst.hist[M - 1];
+    $('#bv-eb').textContent = `${hb[0].toFixed(3)} / ${hb[1].toFixed(3)}`;
+    $('#bv-eo').textContent = `${ho[0].toFixed(3)} / ${ho[1].toFixed(3)}`;
+    const v = $('#bv-verdict');
+    if (M === 1) { v.className = 'verdict meh'; v.textContent = 'With one tree the two methods are the same model (up to the bootstrap). Slide M up.'; }
+    else if (depth === 99) { v.className = 'verdict meh'; v.textContent = 'A full tree interpolates the training data, so boosting\'s residuals are 0 after one tree and nothing changes. Bagging averages the jumpy full trees and wins.'; }
+    else if (ho[1] < hb[1] - 0.005) { v.className = 'verdict ok'; v.textContent = `Boosting wins on test MSE (${ho[1].toFixed(3)} vs ${hb[1].toFixed(3)}): averaging can't remove the bias of ${depth === 1 ? 'a stump' : 'shallow trees'}, but adding fitted corrections can.`; }
+    else if (hb[1] < ho[1] - 0.005) { v.className = 'verdict bad'; v.textContent = `Bagging wins here (${hb[1].toFixed(3)} vs ${ho[1].toFixed(3)}). Boosting has started fitting noise: it's past the bottom of its U-curve.`; }
+    else { v.className = 'verdict meh'; v.textContent = 'About a tie at this M.'; }
+    curve(C, M);
+  }
+  function curve(C, M) {
+    const svg = $('#bv-curve'); clear(svg);
+    const all = C.bag.hist.concat(C.bst.hist).map(h => h[1]), hi = Math.min(0.6, Math.max(...all) * 1.05), lo = 0;
+    const lx = Math.log10, f = frame({ W: 640, H: 200, l: 50, r: 14, t: 10, b: 34, x: [0, lx(MX)], y: [lo, hi] });
+    axes(svg, f, { xt: [0, 1, 2].concat([lx(MX)]), yt: ticksAB(lo, hi, 4), fx: v => String(Math.round(10 ** v)), fy: v => v.toFixed(2), xl: 'M (log scale)', yl: 'test MSE' });
+    const g = clip(svg, f);
+    el('line', { x1: f.L, x2: f.R, y1: f.Y(SD * SD), y2: f.Y(SD * SD), stroke: 'var(--muted)', 'stroke-dasharray': '4 4' }, g);
+    txt(g, f.R - 4, f.Y(SD * SD) - 5, 'noise σ²', 'ax', { 'text-anchor': 'end' });
+    poly(g, C.bag.hist.map((h, i) => [f.X(lx(i + 1)), f.Y(h[1])]), 'var(--c3)', 2.2);
+    poly(g, C.bst.hist.map((h, i) => [f.X(lx(i + 1)), f.Y(h[1])]), 'var(--mi)', 2.2);
+    el('line', { x1: f.X(lx(M)), x2: f.X(lx(M)), y1: f.T, y2: f.B, stroke: 'var(--ink)', 'stroke-width': 1.2 }, g);
+  }
+  whenSeen($('#bv-bag'), draw);
+  renderers.push(() => { if (cache[depth]) draw(); });
+})();
+
+/* =====================================================================
+   18.5.1 Forward stagewise with sign stumps and a choice of loss
+   ===================================================================== */
+(function () {
+  const N = 50, r = rng(5), X0 = [], Y0 = [];
+  for (let i = 0; i < N; i++) { const x = (i + r()) / N; X0.push(x); Y0.push(Math.sin(2 * Math.PI * x) + 0.2 * gauss(r)); }
+  const OUT = [[0.53, 3.2], [0.585, 3.0], [0.63, 3.3], [0.69, 2.9]];
+  let loss = 'sq', outl = false, terms = [], insp = null;
+  const DEL = 0.3;
+  const RHO = { sq: u => u * u, abs: u => Math.abs(u), hub: u => Math.abs(u) <= DEL ? u * u / 2 : DEL * (Math.abs(u) - DEL / 2) };
+  const NAME = { sq: 'mean', abs: 'median', hub: 'Huber M-estimate' };
+  function dat() { const X = X0.slice(), Y = Y0.slice(); if (outl) OUT.forEach(([x, y]) => { X.push(x); Y.push(y); }); return { X, Y }; }
+  const fOf = x => terms.reduce((s, t) => s + t.b * (x <= t.t ? -1 : 1), 0);
+  function median(a) { const s = a.slice().sort((p, q) => p - q), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
+  function bestBeta(s) {
+    if (loss === 'sq') return s.reduce((a, v) => a + v, 0) / s.length;
+    let b = median(s); if (loss === 'abs') return b;
+    for (let it = 0; it < 60; it++) { let sw = 0, sws = 0; s.forEach(v => { const d = Math.abs(v - b), w = d <= DEL ? 1 : DEL / d; sw += w; sws += w * v; }); b = sws / sw; }
+    return b;
+  }
+  const Lsum = (s, b) => s.reduce((a, v) => a + RHO[loss](v - b), 0);
+  function profile() {
+    const { X, Y } = dat(), res = Y.map((y, i) => y - fOf(X[i]));
+    const xs = X.slice().sort((a, b) => a - b), ts = [xs[0] - 0.02];
+    for (let i = 0; i < xs.length - 1; i++) if (xs[i + 1] > xs[i]) ts.push((xs[i] + xs[i + 1]) / 2);
+    const P = ts.map(t => { const s = res.map((rv, i) => (X[i] <= t ? -1 : 1) * rv), b = bestBeta(s); return { t, b, L: Lsum(s, b), s }; });
+    const best = P.reduce((a, p) => p.L < a.L - 1e-12 ? p : a);
+    return { X, Y, res, P, best, L0: res.reduce((a, v) => a + RHO[loss](v), 0) };
+  }
+  function addBest(k) { for (let j = 0; j < k; j++) { const pr = profile(); if (pr.L0 - pr.best.L < 1e-9) break; terms.push({ t: pr.best.t, b: pr.best.b }); } insp = null; draw(); }
+  $('#fs-step').addEventListener('click', () => addBest(1));
+  $('#fs-10').addEventListener('click', () => addBest(10));
+  $('#fs-reset').addEventListener('click', () => { terms = []; insp = null; draw(); });
+  segm('fs-loss', v => { loss = v; terms = []; insp = null; draw(); });
+  $('#fs-out').addEventListener('change', e => { outl = e.target.checked; terms = []; insp = null; draw(); });
+  let PF = null;
+  const prof = $('#fs-prof');
+  onDrag(prof, p => { pick(p); }, p => pick(p));
+  prof.addEventListener('pointermove', e => { if (e.buttons) return; pick(svgPt(prof, e)); });
+  prof.addEventListener('pointerleave', () => { insp = null; draw(); });
+  function pick(p) { if (!PF) return; const t = PF.iX(p.x); insp = PF.P.reduce((a, q) => Math.abs(q.t - t) < Math.abs(a.t - t) ? q : a).t; draw(); }
+  function draw() {
+    const pr = profile(), cur = insp == null ? pr.best : pr.P.reduce((a, q) => Math.abs(q.t - insp) < Math.abs(a.t - insp) ? q : a);
+    // fit panel
+    let svg = $('#fs-fit'); clear(svg);
+    let f = frame({ W: 400, H: 300, l: 36, r: 10, t: 10, b: 30, x: [0, 1], y: [-1.8, 3.6] });
+    axes(svg, f, { xt: [0, 0.5, 1], yt: [-1, 0, 1, 2, 3], xl: 'x' });
+    let g = clip(svg, f);
+    pr.X.forEach((x, i) => el('circle', { cx: f.X(x), cy: f.Y(pr.Y[i]), r: i >= N ? 4.5 : 3, fill: i >= N ? 'var(--red)' : 'var(--muted)', opacity: i >= N ? 0.9 : 0.6 }, g));
+    const GX = range(401).map(i => i / 400);
+    poly(g, GX.map(x => [f.X(x), f.Y(fOf(x))]), 'var(--c1)', 2.4);
+    poly(g, GX.map(x => [f.X(x), f.Y(fOf(x) + cur.b * (x <= cur.t ? -1 : 1))]), 'var(--mi)', 2, { 'stroke-dasharray': '6 4' });
+    if (cur.t > 0) el('line', { x1: f.X(cur.t), x2: f.X(cur.t), y1: f.T, y2: f.B, stroke: 'var(--mi)', 'stroke-width': 1, opacity: .6 }, g);
+    // profile panel
+    svg = prof; clear(svg);
+    const Ls = pr.P.map(p => p.L), lo = Math.min(...Ls), hi = Math.max(pr.L0, ...Ls);
+    f = frame({ W: 360, H: 150, l: 46, r: 10, t: 10, b: 28, x: [0, 1], y: [lo - (hi - lo) * 0.08, hi + (hi - lo) * 0.05 + 1e-9] });
+    axes(svg, f, { xt: [0, 0.5, 1], yt: [lo, hi], fy: v => v.toFixed(1), xl: 't' });
+    PF = Object.assign({}, f, { P: pr.P });
+    g = clip(svg, f);
+    el('line', { x1: f.L, x2: f.R, y1: f.Y(pr.L0), y2: f.Y(pr.L0), stroke: 'var(--muted)', 'stroke-dasharray': '4 4' }, g);
+    txt(g, f.R - 4, f.Y(pr.L0) - 4, 'β = 0 (no change)', 'ax', { 'text-anchor': 'end' });
+    poly(g, pr.P.map(p => [f.X(clamp(p.t, 0, 1)), f.Y(p.L)]), 'var(--c4)', 1.8);
+    el('circle', { cx: f.X(clamp(pr.best.t, 0, 1)), cy: f.Y(pr.best.L), r: 5, fill: 'var(--mi)' }, g);
+    el('circle', { cx: f.X(clamp(cur.t, 0, 1)), cy: f.Y(cur.L), r: 8, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.5 }, g);
+    // beta panel
+    svg = $('#fs-beta'); clear(svg);
+    const b0 = Math.min(-0.5, cur.b - 1.5), b1 = Math.max(0.5, cur.b + 1.5), BS = range(121).map(i => b0 + (b1 - b0) * i / 120), LB = BS.map(b => Lsum(cur.s, b));
+    const blo = Math.min(...LB), bhi = Math.max(...LB);
+    f = frame({ W: 360, H: 150, l: 46, r: 10, t: 10, b: 28, x: [b0, b1], y: [blo - (bhi - blo) * 0.05, bhi] });
+    axes(svg, f, { xt: ticksAB(b0, b1, 5), yt: [blo, bhi], fy: v => v.toFixed(1), xl: 'β' });
+    g = clip(svg, f);
+    poly(g, BS.map((b, i) => [f.X(b), f.Y(LB[i])]), 'var(--c1)', 2);
+    el('line', { x1: f.X(cur.b), x2: f.X(cur.b), y1: f.T, y2: f.B, stroke: 'var(--mi)', 'stroke-dasharray': '3 3' }, g);
+    el('circle', { cx: f.X(cur.b), cy: f.Y(cur.L), r: 4.5, fill: 'var(--mi)' }, g);
+    $('#fs-m').textContent = terms.length;
+    $('#fs-t').textContent = cur.t < 0 ? 'none (constant)' : cur.t.toFixed(3);
+    $('#fs-b').textContent = f3(cur.b);
+    $('#fs-L').textContent = `${pr.L0.toFixed(2)} → ${cur.L.toFixed(2)}`;
+    $('#fs-chain').innerHTML = `<span class="mu">step m = ${terms.length + 1}:</span> r<sub>i</sub> = y<sub>i</sub> − f<sub>${terms.length}</sub>(x<sub>i</sub>) &nbsp;→&nbsp; at t = ${cur.t < 0 ? '−∞' : cur.t.toFixed(3)}, s<sub>i</sub> = F(x<sub>i</sub>) r<sub>i</sub> &nbsp;→&nbsp; β* = ${NAME[loss]}(s) = <span class="m">${f3(cur.b)}</span> &nbsp;→&nbsp; Σℓ: ${pr.L0.toFixed(2)} → <span class="ok">${cur.L.toFixed(2)}</span>` +
+      (insp != null && Math.abs(cur.t - pr.best.t) > 1e-9 ? ` <span class="bad">(not the best t; best is ${pr.best.t < 0 ? 'constant' : pr.best.t.toFixed(3)}, Σℓ = ${pr.best.L.toFixed(2)})</span>` : ` <span class="mu">(best t)</span>`);
+  }
+  draw(); renderers.push(draw);
+})();
+
+/* =====================================================================
+   18.5.2 Least squares boosting (Fig. 18.6)
+   ===================================================================== */
+(function () {
+  const N = 100, NT = 500, MX = 60, r = rng(42), X = [], Y = [], XT = [], YT = [], GX = range(301).map(i => -0.5 + i / 300);
+  for (let i = 0; i < N; i++) { const x = r() - 0.5; X.push([x]); Y.push(3 * x * x + 0.05 * gauss(r)); }
+  for (let i = 0; i < NT; i++) { const x = r() - 0.5; XT.push([x]); YT.push(3 * x * x + 0.05 * gauss(r)); }
+  const cache = {};
+  function build(d) {
+    if (cache[d]) return cache[d];
+    const f = new Float64Array(N), ft = new Float64Array(NT), steps = [];
+    for (let m = 1; m <= MX; m++) {
+      const res = Y.map((y, i) => y - f[i]);
+      const T = growTree(X, res, new Array(N).fill(1), { maxDepth: d, minLeaf: 1 });
+      const prevG = m > 1 ? steps[m - 2].fG : new Float64Array(GX.length);
+      X.forEach((x, i) => f[i] += predTree(T, x)); XT.forEach((x, i) => ft[i] += predTree(T, x));
+      const FG = GX.map(x => predTree(T, [x])), fG = Float64Array.from(GX, (x, i) => prevG[i] + FG[i]);
+      let tr = 0, te = 0; for (let i = 0; i < N; i++) tr += (Y[i] - f[i]) ** 2; for (let i = 0; i < NT; i++) te += (YT[i] - ft[i]) ** 2;
+      steps.push({ res, FG, fG, tr: tr / N, te: te / NT });
+    }
+    return (cache[d] = steps);
+  }
+  let depth = 2;
+  const mS = slider('ls-m', v => String(v), draw);
+  segm('ls-depth', v => { depth = +v; draw(); });
+  $('#ls-prev').addEventListener('click', () => { mS.set(Math.max(1, mS.v - 1)); draw(); });
+  $('#ls-next').addEventListener('click', () => { mS.set(Math.min(MX, mS.v + 1)); draw(); });
+  function draw() {
+    const S = build(depth), m = mS.v, s = S[m - 1];
+    // residual panel
+    let svg = $('#ls-res'); clear(svg);
+    const rmax = m === 1 ? 0.9 : Math.max(0.05, 1.15 * Math.max(...s.res.map(Math.abs)));
+    const ylo = m === 1 ? -0.1 : -rmax, yhi = rmax;
+    let f = frame({ W: 400, H: 270, l: 46, r: 10, t: 10, b: 32, x: [-0.5, 0.5], y: [ylo, yhi] });
+    axes(svg, f, { xt: [-0.4, -0.2, 0, 0.2, 0.4], yt: ticksAB(ylo, yhi, 4), xl: 'x₁', yl: m === 1 ? 'y' : 'y − f' + SUBn(m - 1) + '(x₁)', fy: v => neg(String(+v.toFixed(3))) });
+    let g = clip(svg, f);
+    if (m > 1) el('line', { x1: f.L, x2: f.R, y1: f.Y(0), y2: f.Y(0), stroke: 'var(--muted)', 'stroke-width': 1 }, g);
+    X.forEach((x, i) => el('circle', { cx: f.X(x[0]), cy: f.Y(s.res[i]), r: 3, fill: 'var(--c1)', opacity: .7 }, g));
+    poly(g, GX.map((x, i) => [f.X(x), f.Y(s.FG[i])]), 'var(--c2)', 2.6);
+    txt(svg, f.R - 6, f.T + 14, 'F' + SUBn(m) + '(x₁)', 'lbl halo', { 'text-anchor': 'end', fill: 'var(--c2)' });
+    // ensemble panel
+    svg = $('#ls-ens'); clear(svg);
+    f = frame({ W: 400, H: 270, l: 46, r: 10, t: 10, b: 32, x: [-0.5, 0.5], y: [-0.1, 0.9] });
+    axes(svg, f, { xt: [-0.4, -0.2, 0, 0.2, 0.4], yt: [0, 0.2, 0.4, 0.6, 0.8], xl: 'x₁', yl: 'y' });
+    g = clip(svg, f);
+    X.forEach((x, i) => el('circle', { cx: f.X(x[0]), cy: f.Y(Y[i]), r: 3, fill: 'var(--c1)', opacity: .7 }, g));
+    if (m > 1) poly(g, GX.map((x, i) => [f.X(x), f.Y(S[m - 2].fG[i])]), 'var(--muted)', 1.6, { 'stroke-dasharray': '5 4' });
+    poly(g, GX.map((x, i) => [f.X(x), f.Y(s.fG[i])]), 'var(--red)', 2.6);
+    txt(svg, f.L + 8, f.T + 14, 'f' + SUBn(m) + (m > 1 ? ' (dashed: f' + SUBn(m - 1) + ')' : ''), 'lbl halo', { fill: 'var(--red)' });
+    $('#ls-capL').innerHTML = m === 1 ? 'residuals r<sub>i1</sub> = y<sub>i</sub> and the new tree F<sub>1</sub>' : `residuals r<sub>i${m}</sub> = y<sub>i</sub> − f<sub>${m - 1}</sub>(x<sub>i</sub>) and the new tree F<sub>${m}</sub>`;
+    $('#ls-capR').innerHTML = m === 1 ? 'ensemble f<sub>1</sub> = F<sub>1</sub>' : `ensemble f<sub>${m}</sub> = f<sub>${m - 1}</sub> + F<sub>${m}</sub>` + (m <= 3 ? ' = ' + range(m).map(k => `F<sub>${k + 1}</sub>`).join(' + ') : '');
+    $('#ls-tr').textContent = s.tr.toFixed(4); $('#ls-te').textContent = s.te.toFixed(4);
+    // curve
+    svg = $('#ls-curve'); clear(svg);
+    const lg = Math.log10, all = S.flatMap(q => [q.tr, q.te]), lo = Math.floor(lg(Math.min(...all))), hi = Math.ceil(lg(Math.max(...all)));
+    f = frame({ W: 640, H: 190, l: 56, r: 14, t: 10, b: 34, x: [0, MX], y: [lo, hi] });
+    axes(svg, f, { xt: [1, 10, 20, 30, 40, 50, 60], yt: range(hi - lo + 1).map(k => lo + k), fy: v => '10' + supN(v), xl: 'm (trees)', yl: 'MSE' });
+    g = clip(svg, f);
+    el('line', { x1: f.L, x2: f.R, y1: f.Y(lg(0.0025)), y2: f.Y(lg(0.0025)), stroke: 'var(--muted)', 'stroke-dasharray': '4 4' }, g);
+    poly(g, S.map((q, i) => [f.X(i + 1), f.Y(lg(q.tr))]), 'var(--c1)', 2.2);
+    poly(g, S.map((q, i) => [f.X(i + 1), f.Y(lg(q.te))]), 'var(--red)', 2.2);
+    el('line', { x1: f.X(m), x2: f.X(m), y1: f.T, y2: f.B, stroke: 'var(--ink)', 'stroke-width': 1.2 }, g);
+  }
+  whenSeen($('#ls-res'), draw); renderers.push(() => { if (cache[depth]) draw(); });
+})();
+function SUBn(n) { return String(n).split('').map(d => '₀₁₂₃₄₅₆₇₈₉'[+d]).join(''); }
+function supN(n) { return String(n).split('').map(d => d === '-' ? '⁻' : '⁰¹²³⁴⁵⁶⁷⁸⁹'[+d]).join(''); }
+
+/* =====================================================================
+   18.5.3 Loss functions, population minimizer, AdaBoost.M1
+   ===================================================================== */
+const LOSSES = [
+  ['0-1', m => m <= 0 ? 1 : 0, '--ink'],
+  ['hinge', m => Math.max(0, 1 - m), '--c1'],
+  ['log₂', m => Math.log2(1 + Math.exp(-m)), '--c2'],
+  ['exp', m => Math.exp(-m), '--c0']
+];
+(function () {
+  const mS = slider('lo-m', v => neg(v.toFixed(2)), draw);
+  function draw() {
+    const svg = $('#lo-plot'); clear(svg);
+    const f = frame({ W: 400, H: 280, l: 36, r: 10, t: 10, b: 34, x: [-2, 2], y: [0, 3] });
+    axes(svg, f, { xt: [-2, -1, 0, 1, 2], yt: [0, 1, 2, 3], xl: 'margin ỹ F(x)' });
+    const g = clip(svg, f), M = range(401).map(i => -2 + i / 100);
+    poly(g, [[f.X(-2), f.Y(1)], [f.X(0), f.Y(1)], [f.X(0), f.Y(0)], [f.X(2), f.Y(0)]], 'var(--ink)', 2.4);
+    LOSSES.slice(1).forEach(([, fn, c]) => poly(g, M.map(m => [f.X(m), f.Y(fn(m))]), `var(${c})`, 2.4));
+    const m = mS.v;
+    el('line', { x1: f.X(m), x2: f.X(m), y1: f.T, y2: f.B, stroke: 'var(--mi)', 'stroke-dasharray': '4 3' }, g);
+    LOSSES.forEach(([, fn, c]) => { const v = fn(m); if (v <= 3) el('circle', { cx: f.X(m), cy: f.Y(v), r: 4.5, fill: `var(${c})`, stroke: 'var(--surface)', 'stroke-width': 1.5 }, g); });
+    txt(svg, f.X(-1), f.T + 14, 'wrong side', 'ax', { 'text-anchor': 'middle' }); txt(svg, f.X(1), f.T + 14, 'right side', 'ax', { 'text-anchor': 'middle' });
+    const mx = Math.exp(2);
+    $('#lo-bars').innerHTML = LOSSES.map(([n, fn, c]) => { const v = fn(m); return `<div class="r"><span>${n}</span><div class="bar"><i style="width:${100 * v / mx}%;background:var(${c})"></i></div><span class="v">${v.toFixed(3)}</span></div>`; }).join('') +
+      `<p class="mini" style="margin:8px 0 0">exp / log₂ ratio: ${(Math.exp(-m) / Math.log2(1 + Math.exp(-m))).toFixed(2)}×</p>`;
+  }
+  draw(); renderers.push(draw);
+})();
+(function () {
+  const pS = slider('pm-p', v => v.toFixed(2), draw);
+  function draw() {
+    const p = pS.v, svg = $('#pm-plot'); clear(svg);
+    const E = F => p * Math.exp(-F) + (1 - p) * Math.exp(F), Lg = F => p * Math.log(1 + Math.exp(-2 * F)) + (1 - p) * Math.log(1 + Math.exp(2 * F));
+    const f = frame({ W: 400, H: 240, l: 36, r: 10, t: 10, b: 34, x: [-2.5, 2.5], y: [0, 3] });
+    axes(svg, f, { xt: [-2, -1, 0, 1, 2], yt: [0, 1, 2, 3], xl: 'score F(x)' });
+    const g = clip(svg, f), FS = range(5001).map(i => -2.5 + i / 1000);
+    let be = FS[0], bl = FS[0]; FS.forEach(F => { if (E(F) < E(be)) be = F; if (Lg(F) < Lg(bl)) bl = F; });
+    poly(g, FS.filter((_, i) => i % 10 === 0).map(F => [f.X(F), f.Y(E(F))]), 'var(--c0)', 2.4);
+    poly(g, FS.filter((_, i) => i % 10 === 0).map(F => [f.X(F), f.Y(Lg(F))]), 'var(--c2)', 2.4);
+    el('line', { x1: f.X(be), x2: f.X(be), y1: f.T, y2: f.B, stroke: 'var(--mi)', 'stroke-dasharray': '4 3' }, g);
+    el('circle', { cx: f.X(be), cy: f.Y(E(be)), r: 5, fill: 'var(--c0)' }, g); el('circle', { cx: f.X(bl), cy: f.Y(Lg(bl)), r: 5, fill: 'var(--c2)' }, g);
+    txt(g, f.X(-2.4), f.Y(E(-2.4) > 3 ? 2.8 : E(-2.4)) + 16, 'E[exp loss]', 'lbl halo', { fill: 'var(--c0)' });
+    txt(g, f.X(2.4), f.Y(Lg(2.4) > 3 ? 2.8 : Lg(2.4)) + 16, 'E[log loss]', 'lbl halo', { fill: 'var(--c2)', 'text-anchor': 'end' });
+    $('#pm-fe').textContent = f3(be); $('#pm-fl').textContent = f3(bl); $('#pm-fs').textContent = f3(0.5 * Math.log(p / (1 - p)));
+  }
+  draw(); renderers.push(draw);
+})();
+
+/* circle data shared by AdaBoost and LogitBoost demos */
+function circleData(seed, n) {
+  const r = rng(seed), X = [], y = [];
+  for (let i = 0; i < n; i++) { const a = 2 * r() - 1, b = 2 * r() - 1; X.push([a, b]); y.push(a * a + b * b < 0.45 ? 1 : -1); }
+  return { X, y };
+}
+/* one round of discrete AdaBoost; returns { T (±1 leaves), err, beta } */
+function adaRound(X, y, w, depth) {
+  const T = signTree(growTree(X, y, w, { maxDepth: depth, minLeaf: 1, crit: depth === 1 ? 'err' : 'mse' }));
+  let sw = 0, se = 0; for (let i = 0; i < X.length; i++) { sw += w[i]; if (predTree(T, X[i]) !== y[i]) se += w[i]; }
+  const err = clamp(se / sw, 1e-10, 1), beta = err < 0.5 ? 0.5 * Math.log((1 - err) / err) : 0;
+  return { T, err, beta };
+}
+function mapFrame(svg, W) { return frame({ W, H: W, l: 8, r: 8, t: 8, b: 8, x: [-1, 1], y: [-1, 1] }); }
+function regionRaster(svg, f, fOf, n) {
+  const pos = soft('--c0', 0.16), ng = soft('--c1', 0.16);
+  raster(svg, f, n, n, (i, j) => fOf([-1 + 2 * (i + 0.5) / n, -1 + 2 * (j + 0.5) / n]) > 0 ? pos : ng);
+  el('circle', { cx: f.X(0), cy: f.Y(0), r: f.X(Math.sqrt(0.45)) - f.X(0), fill: 'none', stroke: 'var(--ink)', 'stroke-dasharray': '4 4', opacity: .45 }, svg);
+  el('rect', { x: f.L, y: f.T, width: f.R - f.L, height: f.B - f.T, fill: 'none', stroke: 'var(--rule)' }, svg);
+}
+
+(function () {
+  const TR = circleData(3, 120), TE = circleData(77, 2000), N = TR.X.length;
+  let depth = 1, S;
+  function reset() { S = { w: new Array(N).fill(1 / N), trees: [], f: new Float64Array(N), ft: new Float64Array(TE.X.length), hist: [], last: null }; }
+  reset();
+  function step() {
+    const { T, err, beta } = adaRound(TR.X, TR.y, S.w, depth), mis = [];
+    for (let i = 0; i < N; i++) { const h = predTree(T, TR.X[i]); S.f[i] += beta * h; if (h !== TR.y[i]) mis.push(i); }
+    for (let i = 0; i < TE.X.length; i++) S.ft[i] += beta * predTree(T, TE.X[i]);
+    const alpha = 2 * beta;
+    mis.forEach(i => S.w[i] *= Math.exp(alpha));
+    const sw = S.w.reduce((a, b) => a + b, 0); for (let i = 0; i < N; i++) S.w[i] /= sw;
+    const half = mis.reduce((a, i) => a + S.w[i], 0);
+    let tr = 0, te = 0, bd = 0; for (let i = 0; i < N; i++) { if (S.f[i] * TR.y[i] <= 0) tr++; bd += Math.exp(-TR.y[i] * S.f[i]); }
+    for (let i = 0; i < TE.X.length; i++) if (S.ft[i] * TE.y[i] <= 0) te++;
+    S.trees.push({ T, beta }); S.last = { T, err, alpha, mis: new Set(mis), half };
+    S.hist.push({ err, tr: tr / N, te: te / TE.X.length, bd: bd / N });
+  }
+  const go = k => { for (let j = 0; j < k && S.trees.length < 500; j++) step(); draw(); };
+  $('#ab-step').addEventListener('click', () => go(1)); $('#ab-10').addEventListener('click', () => go(10)); $('#ab-100').addEventListener('click', () => go(100));
+  $('#ab-reset').addEventListener('click', () => { reset(); draw(); });
+  segm('ab-depth', v => { depth = +v; reset(); draw(); });
+  const fOf = x => S.trees.reduce((s, t) => s + t.beta * predTree(t.T, x), 0);
+  function draw() {
+    const svg = $('#ab-map'); clear(svg);
+    const f = mapFrame(svg, 380);
+    if (S.trees.length) regionRaster(svg, f, fOf, 90);
+    else { el('rect', { x: f.L, y: f.T, width: f.R - f.L, height: f.B - f.T, fill: 'none', stroke: 'var(--rule)' }, svg); el('circle', { cx: f.X(0), cy: f.Y(0), r: f.X(Math.sqrt(0.45)) - f.X(0), fill: 'none', stroke: 'var(--ink)', 'stroke-dasharray': '4 4', opacity: .45 }, svg); }
+    const g = clip(svg, f), L = S.last;
+    const order = range(N).sort((a, b) => S.w[b] - S.w[a]);
+    order.forEach(i => {
+      const rr = clamp(4.2 * Math.sqrt(S.w[i] * N), 1.4, 26);
+      mark(g, f.X(TR.X[i][0]), f.Y(TR.X[i][1]), TR.y[i] > 0 ? 0 : 1, rr, { opacity: 0.85 });
+      if (L && L.mis.has(i)) ring(g, f.X(TR.X[i][0]), f.Y(TR.X[i][1]), rr + 3, 'var(--ink)');
+    });
+    if (L) treeSegs(L.T, [-1, 1, -1, 1]).forEach(([a, b]) => { el('line', { x1: f.X(a[0]), y1: f.Y(a[1]), x2: f.X(b[0]), y2: f.Y(b[1]), stroke: 'var(--surface)', 'stroke-width': 6 }, g); el('line', { x1: f.X(a[0]), y1: f.Y(a[1]), x2: f.X(b[0]), y2: f.Y(b[1]), stroke: 'var(--ink)', 'stroke-width': 2.6 }, g); });
+    const m = S.trees.length;
+    $('#ab-m').textContent = m;
+    $('#ab-err').textContent = L ? L.err.toFixed(3) : '–';
+    $('#ab-al').textContent = L ? L.alpha.toFixed(3) : '–';
+    $('#ab-mul').textContent = L ? Math.exp(L.alpha).toFixed(2) + '×' : '–';
+    const H = S.hist[m - 1];
+    $('#ab-tr').textContent = H ? pct(H.tr) : '–'; $('#ab-te').textContent = H ? pct(H.te) : '–'; $('#ab-bd').textContent = H ? H.bd.toFixed(3) : '–';
+    $('#ab-half').textContent = L ? L.half.toFixed(3) : '–';
+    const on = L ? ' class="on"' : '';
+    $('#ab-algo').innerHTML = [
+      `<b>Algorithm 18.1: AdaBoost.M1</b>`,
+      `<span class="ln">1</span>ω<sub>i</sub> = 1/N`,
+      `<span class="ln">2</span>for m = 1 : M do`,
+      `<span class="ln">3</span>&nbsp;&nbsp;fit F<sub>m</sub> to the training set using weights ω`,
+      `<span class="ln">4</span>&nbsp;&nbsp;err<sub>m</sub> = Σ ω<sub>i</sub> 𝕀(ỹ<sub>i</sub> ≠ F<sub>m</sub>(x<sub>i</sub>)) / Σ ω<sub>i</sub>${L ? ` <b>= ${L.err.toFixed(3)}</b>` : ''}`,
+      `<span class="ln">5</span>&nbsp;&nbsp;α<sub>m</sub> = log[(1 − err<sub>m</sub>)/err<sub>m</sub>]${L ? ` <b>= ${L.alpha.toFixed(3)}</b>` : ''}`,
+      `<span class="ln">6</span>&nbsp;&nbsp;ω<sub>i</sub> ← ω<sub>i</sub> exp[α<sub>m</sub> 𝕀(ỹ<sub>i</sub> ≠ F<sub>m</sub>(x<sub>i</sub>))]${L ? ` <b>(${L.mis.size} points × ${Math.exp(L.alpha).toFixed(2)})</b>` : ''}`,
+      `<span class="ln">7</span>return f(x) = sgn[Σ<sub>m</sub> α<sub>m</sub> F<sub>m</sub>(x)]`
+    ].map((s, k) => `<div${k >= 3 && k <= 6 ? on : ''}>${s}</div>`).join('');
+    curve();
+  }
+  function curve() {
+    const svg = $('#ab-curve'); clear(svg);
+    const m = S.trees.length, MX = Math.max(20, Math.ceil(m / 10) * 10);
+    const f = frame({ W: 640, H: 220, l: 46, r: 14, t: 10, b: 34, x: [0, MX], y: [0, 1] });
+    axes(svg, f, { xt: ticksAB(0, MX, 5), yt: [0, 0.25, 0.5, 0.75, 1], xl: 'round m', fy: v => v.toFixed(2) });
+    el('line', { x1: f.L, x2: f.R, y1: f.Y(0.5), y2: f.Y(0.5), stroke: 'var(--muted)', 'stroke-dasharray': '2 4' }, svg);
+    txt(svg, f.R - 4, f.Y(0.5) - 5, 'chance (err = ½)', 'ax', { 'text-anchor': 'end' });
+    if (!m) { txt(svg, (f.L + f.R) / 2, f.Y(0.75), 'press "Round m+1"', 'axl', { 'text-anchor': 'middle' }); return; }
+    const g = clip(svg, f), H = S.hist;
+    if (m <= 120) H.forEach((h, i) => el('circle', { cx: f.X(i + 1), cy: f.Y(h.err), r: 2.4, fill: 'var(--muted)' }, g));
+    else poly(g, H.map((h, i) => [f.X(i + 1), f.Y(h.err)]), 'var(--muted)', 1, { opacity: .6 });
+    poly(g, [[f.X(0), f.Y(1)]].concat(H.map((h, i) => [f.X(i + 1), f.Y(Math.min(1, h.bd))])), 'var(--c3)', 2, { 'stroke-dasharray': '6 4' });
+    poly(g, H.map((h, i) => [f.X(i + 1), f.Y(h.te)]), 'var(--c0)', 2.2);
+    poly(g, H.map((h, i) => [f.X(i + 1), f.Y(h.tr)]), 'var(--c4)', 2.4);
+  }
+  whenSeen($('#ab-map'), draw); renderers.push(draw);
+})();
+
+/* =====================================================================
+   18.5.4 Influence curves, then AdaBoost vs LogitBoost with label noise
+   ===================================================================== */
+(function () {
+  const mS = slider('if-m', v => neg(v.toFixed(2)), draw);
+  const IE = m => Math.exp(-m), IL = m => 2 / (1 + Math.exp(2 * m));
+  function draw() {
+    const svg = $('#if-plot'); clear(svg);
+    const f = frame({ W: 400, H: 240, l: 40, r: 10, t: 10, b: 34, x: [-4, 3], y: [0, 6] });
+    axes(svg, f, { xt: [-4, -3, -2, -1, 0, 1, 2, 3], yt: [0, 2, 4, 6], xl: 'margin m = ỹ f(x)', yl: '|∂ℓ/∂f|' });
+    const g = clip(svg, f), M = range(351).map(i => -4 + i / 50);
+    el('line', { x1: f.L, x2: f.R, y1: f.Y(2), y2: f.Y(2), stroke: 'var(--c2)', 'stroke-dasharray': '3 4', opacity: .7 }, g);
+    txt(g, f.R - 4, f.Y(2) - 5, 'log-loss cap = 2', 'ax', { 'text-anchor': 'end' });
+    poly(g, M.map(m => [f.X(m), f.Y(Math.min(7, IE(m)))]), 'var(--c0)', 2.4);
+    poly(g, M.map(m => [f.X(m), f.Y(IL(m))]), 'var(--c2)', 2.4);
+    const m = mS.v;
+    el('line', { x1: f.X(m), x2: f.X(m), y1: f.T, y2: f.B, stroke: 'var(--mi)', 'stroke-dasharray': '4 3' }, g);
+    if (IE(m) <= 6) el('circle', { cx: f.X(m), cy: f.Y(IE(m)), r: 4.5, fill: 'var(--c0)' }, g);
+    else txt(g, f.X(m) + 6, f.T + 14, '↑ ' + IE(m).toFixed(1), 'lbl halo', { fill: 'var(--c0)' });
+    el('circle', { cx: f.X(m), cy: f.Y(IL(m)), r: 4.5, fill: 'var(--c2)' }, g);
+    $('#if-e').textContent = IE(m).toFixed(2); $('#if-l').textContent = IL(m).toFixed(2); $('#if-r').textContent = (IE(m) / IL(m)).toFixed(1) + '×';
+  }
+  draw(); renderers.push(draw);
+})();
+(function () {
+  const BASE = circleData(21, 200), TE = circleData(88, 2000), N = 200, M = 200, NT = TE.X.length, perm = shuffleIdx(N, rng(5));
+  let R = null;
+  function fit(q) {
+    const nf = Math.round(q * N), flip = new Set(perm.slice(0, nf)), y = BASE.y.map((v, i) => flip.has(i) ? -v : v), ys = y.map(v => (v + 1) / 2);
+    const mk = () => ({ trees: [], f: new Float64Array(N), ft: new Float64Array(NT), snap: [], hist: [] });
+    const A = mk(), B = mk();
+    let w = new Array(N).fill(1 / N);
+    const record = (S, infl) => {
+      let fl = 0; flip.forEach(i => fl += infl[i]);
+      let e = 0, ll = 0;
+      for (let i = 0; i < NT; i++) { const yy = TE.y[i]; if (S.ft[i] * yy <= 0) e++; const p = clamp(sigm(2 * S.ft[i]), 1e-12, 1 - 1e-12); ll -= yy > 0 ? Math.log(p) : Math.log(1 - p); }
+      S.hist.push({ flip: flip.size ? fl / flip.size : 0, mx: Math.max(...infl), te: e / NT, ll: ll / NT });
+      S.snap.push(Float64Array.from(infl));
+    };
+    for (let m = 0; m < M; m++) {
+      // AdaBoost (discrete, stumps): weights ω_i ∝ exp(−ỹ_i f(x_i)), normalized before each fit
+      const { T, beta } = adaRound(BASE.X, y, w, 1);
+      for (let i = 0; i < N; i++) A.f[i] += beta * predTree(T, BASE.X[i]);
+      for (let i = 0; i < NT; i++) A.ft[i] += beta * predTree(T, TE.X[i]);
+      A.trees.push({ T, s: beta });
+      const infA = Array.from(A.f, (f, i) => Math.exp(-y[i] * f)), sw = infA.reduce((a, b) => a + b, 0);
+      w = infA.map(v => v / sw);
+      record(A, infA);
+      // LogitBoost (Algorithm 18.2): Newton step = weighted LS fit of working responses, f += ½ F
+      const z = [], ww = [];
+      for (let i = 0; i < N; i++) { const p = sigm(2 * B.f[i]), q2 = Math.max(p * (1 - p), 1e-6); z.push(clamp((ys[i] - p) / q2, -4, 4)); ww.push(q2); }
+      const U = scaleTree(growTree(BASE.X, z, ww, { maxDepth: 1, minLeaf: 1 }), 0.5);
+      for (let i = 0; i < N; i++) B.f[i] += predTree(U, BASE.X[i]);
+      for (let i = 0; i < NT; i++) B.ft[i] += predTree(U, TE.X[i]);
+      B.trees.push({ T: U, s: 1 });
+      record(B, Array.from(B.f, (f, i) => 2 * Math.abs(ys[i] - sigm(2 * f))));
+    }
+    return { A, B, flip, y };
+  }
+  const nS = slider('lb-noise', v => Math.round(v * 100) + '%', () => { R = null; sched(); });
+  const mS = slider('lb-m', v => String(v), () => sched());
+  let pend = false;
+  function sched() { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; draw(); }); }
+  function map(svg, S, m, infl) {
+    clear(svg);
+    const f = mapFrame(svg, 340), fOf = x => { let s = 0; for (let k = 0; k < m; k++) s += S.trees[k].s * predTree(S.trees[k].T, x); return s; };
+    regionRaster(svg, f, fOf, 70);
+    const g = clip(svg, f);
+    range(N).sort((a, b) => infl[b] - infl[a]).forEach(i => {
+      const rr = clamp(4.5 * Math.sqrt(infl[i]), 1.3, 34);
+      mark(g, f.X(BASE.X[i][0]), f.Y(BASE.X[i][1]), R.y[i] > 0 ? 0 : 1, rr, { opacity: .8 });
+      if (R.flip.has(i)) ring(g, f.X(BASE.X[i][0]), f.Y(BASE.X[i][1]), rr + 3, 'var(--ink)');
+    });
+  }
+  function hcurve(svg, key, m, ylo, yhi) {
+    clear(svg);
+    const f = frame({ W: 400, H: 200, l: 44, r: 10, t: 10, b: 32, x: [0, M], y: [ylo, yhi] });
+    axes(svg, f, { xt: [0, 50, 100, 150, 200], yt: ticksAB(ylo, yhi, 4), xl: 'round m', fy: v => v.toFixed(2) });
+    const g = clip(svg, f);
+    poly(g, R.A.hist.map((h, i) => [f.X(i + 1), f.Y(h[key])]), 'var(--c0)', 2.2);
+    poly(g, R.B.hist.map((h, i) => [f.X(i + 1), f.Y(h[key])]), 'var(--c2)', 2.2);
+    el('line', { x1: f.X(m), x2: f.X(m), y1: f.T, y2: f.B, stroke: 'var(--ink)', 'stroke-width': 1.2 }, g);
+  }
+  function draw() {
+    if (!R) R = fit(nS.v);
+    const m = mS.v, ha = R.A.hist[m - 1], hb = R.B.hist[m - 1];
+    map($('#lb-ada'), R.A, m, R.A.snap[m - 1]);
+    map($('#lb-lgt'), R.B, m, R.B.snap[m - 1]);
+    const has = R.flip.size > 0;
+    $('#lb-s1').textContent = has ? ha.flip.toFixed(2) : 'no flips'; $('#lb-s2').textContent = has ? hb.flip.toFixed(2) : 'no flips';
+    $('#lb-x1').textContent = ha.mx.toFixed(2); $('#lb-x2').textContent = hb.mx.toFixed(2);
+    $('#lb-e1').textContent = pct(ha.te); $('#lb-e2').textContent = pct(hb.te);
+    $('#lb-l1').textContent = ha.ll.toFixed(3); $('#lb-l2').textContent = hb.ll.toFixed(3);
+    const all = k => R.A.hist.concat(R.B.hist).map(h => h[k]);
+    hcurve($('#lb-err'), 'te', m, 0, Math.min(0.5, Math.ceil((Math.max(...all('te').slice(0)) + 0.02) * 20) / 20));
+    hcurve($('#lb-ll'), 'll', m, 0, Math.min(2, Math.ceil(Math.max(...all('ll')) * 10 + 0.5) / 10));
+  }
+  whenSeen($('#lb-ada'), draw); renderers.push(() => { if (R) draw(); });
+})();
+
+/* ---------- quiz ---------- */
+const QUIZ = {
+  rf: [
+    { l: 'Kid', q: 'Why does a random forest hand each tree only a few clue cards at each question?', o: ['So the trees think differently and don\'t all make the same mistake', 'To make each tree as smart as possible', 'Because the computer runs out of memory', 'So the trees finish faster than one big tree'], a: 0, w: 'Different trees make different mistakes, and different mistakes cancel when they vote.' },
+    { l: 'HS', q: 'In a random forest, when is the random subset of features drawn?', o: ['Fresh at every node of every tree', 'Once per tree', 'Once for the whole forest', 'Only at the root'], a: 0, w: 'Eq. 18.5 is optimized over a new random Sᵢ at every node i.' },
+    { l: 'HS', q: 'A random forest with m = D (all features available at every split) is the same as…', o: ['bagged decision trees', 'boosting', 'a single decision tree', 'a stump'], a: 0, w: 'With nothing hidden, the only randomness left is the bootstrap: bagging.' },
+    { l: 'Undergrad', q: 'Average M trees with variance σ² and correlation ρ. As M → ∞ the variance goes to…', o: ['ρσ²', '0', 'σ²/M', 'σ²'], a: 0, w: 'ρσ² + (1 − ρ)σ²/M → ρσ². Random features attack ρ.' },
+    { l: 'Undergrad', q: 'Lowering m makes each individual tree…', o: ['worse on its own, but less correlated with the others', 'better on its own and more correlated', 'identical to the others', 'shallower'], a: 0, w: 'That trade-off gives the U-shape in the m sweep.' },
+    { l: 'Undergrad', q: 'According to Fig. 18.5 and the text, which statement is right?', o: ['RF beats bagging on spam, and boosting beats RF but must fit trees sequentially', 'Bagging beats RF on spam', 'RF must be fit sequentially', 'Boosting can be fit fully in parallel like RF'], a: 0, w: 'Forests and bagging fit independent trees in parallel; boosting is sequential.' },
+    { l: 'HS', q: 'Which of these is NOT one of the 57 spam features?', o: ['The sender\'s email address', 'Percentage of words equal to "remove"', 'Percentage of characters equal to "!"', 'Longest run of capital letters (CAPMAX)'], a: 0, w: '48 word frequencies, 6 character frequencies and 3 capital-run features. No sender info.' },
+    { l: 'Grad', q: 'With D = 30 features of which 11 are useful (as in the demo), how often does a node with m = 2 see none of the useful ones?', o: ['About 39% of the time', 'Never', 'About 8% of the time', 'About 63% of the time'], a: 0, w: 'C(19,2)/C(30,2) = 171/435 ≈ 0.39. With m = 1 it is 19/30 ≈ 0.63, with m = 5 about 0.08.' }
+  ],
+  boost: [
+    { l: 'Kid', q: 'In boosting, what does each new helper mostly practice on?', o: ['The examples the team so far keeps getting wrong', 'A random set of examples', 'Only the easy examples', 'The same examples as the first helper, with no changes'], a: 0, w: 'Misclassified examples get more weight for the next learner.' },
+    { l: 'HS', q: 'Averaging 100 bagged stumps on a wavy curve gives roughly…', o: ['one smoothed step: averaging doesn\'t fix the bias', 'a perfect copy of the curve', 'a straight line through the origin', 'zero everywhere'], a: 0, w: 'The average of similar stumps is still stump-shaped. Bagging cuts variance, not bias.' },
+    { l: 'HS', q: 'What is a weak learner?', o: ['A classifier only slightly better than chance, even on reweighted data', 'A classifier with 0% training error', 'Any neural network', 'A classifier that is worse than chance'], a: 0, w: 'Accuracy a bit above 50% on every weighting is enough for boosting.' },
+    { l: 'Undergrad', q: 'Boosting mainly reduces ____, while bagging and random forests mainly reduce ____.', o: ['bias; variance', 'variance; bias', 'noise; bias', 'variance; noise'], a: 0, w: 'Dependent, sequential trees add capacity; independent averaged trees cut variance.' },
+    { l: 'Undergrad', q: 'In f(x) = Σ βₘ Fₘ(x; θₘ), why is this called a linear model with adaptive basis functions?', o: ['It is linear in β, but the basis functions Fₘ are themselves learned', 'Because each Fₘ is linear in x', 'Because βₘ = 1/M always', 'Because it uses linear regression trees'], a: 0, w: 'Fixed θ would make it ordinary linear regression on features Fₘ(x).' },
+    { l: 'Undergrad', q: 'How is the number of boosting rounds M usually chosen?', o: ['By monitoring a validation set and stopping early', 'As large as possible, since boosting can\'t overfit', 'Always M = 100', 'By the number of features'], a: 0, w: 'M controls model complexity; test error eventually rises.' },
+    { l: 'Grad', q: 'With depth-1 stumps as base learners, the boosted model is…', o: ['an additive model with no interaction terms', 'a model with all pairwise interactions', 'linear in x', 'a single tree'], a: 0, w: 'Each stump uses one feature, so f is a sum of univariate functions (a GAM).' }
+  ],
+  fsam: [
+    { l: 'Kid', q: 'In forward stagewise fitting, what happens to the blocks you already placed?', o: ['They stay glued where they are', 'They are all moved each step', 'The oldest one is removed', 'They get bigger'], a: 0, w: 'Earlier terms are never adjusted.' },
+    { l: 'HS', q: 'At step m, what is solved for?', o: ['Only the new term\'s size β and shape θ', 'Every term in the model', 'Only the first term', 'Nothing; terms are random'], a: 0, w: 'Eq. 18.17 optimizes (β, θ) for the new term with fₘ₋₁ fixed.' },
+    { l: 'HS', q: 'Why can adding a step never make the training loss worse?', o: ['β = 0 is allowed, which leaves the loss unchanged', 'Because the loss is always zero', 'Because trees always overfit', 'It can make it worse'], a: 0, w: 'The minimum over β is at most the value at β = 0.' },
+    { l: 'Undergrad', q: 'With a ±1 sign stump F and absolute loss, the best β for a fixed threshold is…', o: ['the median of F(xᵢ)·rᵢ', 'the mean of rᵢ', 'the largest residual', 'always 1'], a: 0, w: '|r − βF| = |F r − β| when F = ±1, and the median minimizes total absolute deviation.' },
+    { l: 'Undergrad', q: 'Why does the squared-loss proposal bend toward the outliers but the absolute-loss one doesn\'t?', o: ['The mean is pulled by large values; the median is not', 'Absolute loss ignores all points', 'Squared loss ignores outliers', 'Because the threshold changes'], a: 0, w: 'Squared loss gives large residuals quadratic weight.' },
+    { l: 'Grad', q: 'Forward stagewise fitting with exact line search over a dictionary of weak learners is best described as…', o: ['coordinate descent in function space', 'Newton\'s method on all parameters', 'Gibbs sampling', 'EM'], a: 0, w: 'Each step picks a direction F (a coordinate) and moves the optimal amount β along it.' }
+  ],
+  ls: [
+    { l: 'Kid', q: 'In least squares boosting, what does the second tree try to predict?', o: ['How much the first tree missed by', 'The same answers as the first tree', 'Random numbers', 'Only the biggest answers'], a: 0, w: 'It fits the residuals: actual minus predicted.' },
+    { l: 'HS', q: 'The residual rᵢₘ equals…', o: ['yᵢ − fₘ₋₁(xᵢ)', 'fₘ₋₁(xᵢ) − fₘ(xᵢ)', 'yᵢ²', 'Fₘ(xᵢ) − yᵢ'], a: 0, w: 'Truth minus the current model\'s prediction.' },
+    { l: 'HS', q: 'Before the first step (f₀ = 0), the residuals are…', o: ['the targets yᵢ themselves', 'all zero', 'all one', 'random noise'], a: 0, w: 'rᵢ₁ = yᵢ − 0. The top-left panel of Fig. 18.6 fits y directly.' },
+    { l: 'Undergrad', q: 'Why can least squares boosting set β = 1?', o: ['A regression tree\'s leaf values absorb any scale factor', 'β is always 1 in boosting', 'Because squared loss is convex', 'Because the residuals sum to zero'], a: 0, w: 'βF = Σ (βwⱼ) 𝕀(x ∈ Rⱼ), so β is redundant.' },
+    { l: 'Undergrad', q: 'In a leaf of Fₘ, the fitted value is…', o: ['the mean residual of the training points in that leaf', 'the mean of y in that leaf', 'the median of x in that leaf', 'zero'], a: 0, w: 'Eq. 18.3 applied to the residuals.' },
+    { l: 'Grad', q: 'The residual equals (up to a constant) which quantity, which generalizes boosting to other losses?', o: ['The negative gradient of the loss with respect to f(xᵢ)', 'The Hessian of the loss', 'The leaf index', 'The KL divergence'], a: 0, w: '−½ ∂(y − f)²/∂f = y − f. Fitting negative gradients is gradient boosting.' }
+  ],
+  ada: [
+    { l: 'Kid', q: 'In AdaBoost, what happens to an example the newest helper got wrong?', o: ['It gets more weight (bigger) for the next helper', 'It is deleted', 'It gets smaller', 'Nothing'], a: 0, w: 'Mistakes are multiplied by e^α.' },
+    { l: 'HS', q: 'The margin ỹ F(x) is negative when…', o: ['the example is misclassified', 'the example is correct and confident', 'F(x) = 0 exactly', 'ỹ = +1'], a: 0, w: 'Label and score have opposite signs.' },
+    { l: 'HS', q: 'A stump with weighted error 0.5 gets vote weight α = …', o: ['0', '1', '0.5', 'infinity'], a: 0, w: 'α = log((1 − 0.5)/0.5) = log 1 = 0: a coin flip gets no say.' },
+    { l: 'Undergrad', q: 'If errₘ = 0.2, mistakes have their weights multiplied by…', o: ['4', '0.25', '2', 'e'], a: 0, w: 'α = log(0.8/0.2) = log 4, so e^α = 4.' },
+    { l: 'Undergrad', q: 'Given the weights ωᵢ,ₘ, the best binary weak learner for exponential loss minimizes…', o: ['the weighted misclassification rate', 'the unweighted squared error', 'the number of leaves', 'the exponential of the margin of the worst point'], a: 0, w: 'Eq. 18.29: for β > 0 the β-dependent part is proportional to Σ ω 𝕀(ỹ ≠ F).' },
+    { l: 'Undergrad', q: 'The population minimizer of the expected exponential loss is…', o: ['½ log[p(ỹ = 1|x)/p(ỹ = −1|x)], the same as for log loss', 'p(ỹ = 1|x)', 'sign of p − ½ only', 'log p(ỹ = 1|x)'], a: 0, w: 'Eq. 18.25: the ratio of the class probabilities equals exp(2F).' },
+    { l: 'Grad', q: 'Right after AdaBoost reweights, what is the weighted error of the learner Fₘ it just added?', o: ['Exactly ½', '0', 'errₘ', '1 − errₘ'], a: 0, w: 'Correct points carry (1 − ε)·1 and mistakes ε·e^α = (1 − ε); after normalizing, each side is ½. Watch the readout.' },
+    { l: 'Grad', q: 'Which algorithm generalizes AdaBoost to K classes and is used by scikit-learn\'s AdaBoostClassifier?', o: ['SAMME', 'LogitBoost', 'XGBoost', 'Random forest'], a: 0, w: 'Stagewise additive modeling using a multiclass exponential loss [Has+09].' }
+  ],
+  logit: [
+    { l: 'Kid', q: 'Why can AdaBoost get confused by a typo in the answer key?', o: ['It keeps making that example bigger forever, since it can never get it "right"', 'It ignores all mistakes', 'It deletes the example', 'It stops after one round'], a: 0, w: 'Exponential growth of weight on a mislabeled point.' },
+    { l: 'HS', q: 'For very negative margins, how do the losses grow?', o: ['Exponential loss grows exponentially; log loss grows about linearly', 'Both grow linearly', 'Log loss grows faster', 'Both are flat'], a: 0, w: 'Look at the left side of Fig. 18.7.' },
+    { l: 'HS', q: 'With log loss, how do you turn the score f(x) into a probability?', o: ['p(y = 1|x) = 1/(1 + exp(−2f(x)))', 'p = f(x)', 'p = exp(f(x))', 'You can\'t'], a: 0, w: 'Eq. 18.36: f is half the log odds.' },
+    { l: 'Undergrad', q: 'Why does the book say we can\'t recover probabilities from AdaBoost\'s f?', o: ['exp(−ỹf) is not the log of any pmf, so f is not fit as a probability model', 'Because AdaBoost outputs only ±1 forever', 'Because exponential loss is not convex', 'Because the trees are too deep'], a: 0, w: 'Log loss is a negative log likelihood; exponential loss is not.' },
+    { l: 'Undergrad', q: 'Each LogitBoost round solves…', o: ['a weighted least squares problem with targets zᵢ and weights pᵢ(1 − pᵢ)', 'a weighted misclassification problem', 'an unweighted Gini split search', 'a linear program'], a: 0, w: 'A Newton (IRLS-like) step on Eq. 18.37.' },
+    { l: 'Undergrad', q: 'The working response for a point with y* = 1 and pᵢ = 0.1 is…', o: ['10', '0.9', '0.09', '−10'], a: 0, w: 'z = (1 − 0.1)/(0.1·0.9) = 0.9/0.09 = 10. (This page caps it at 4.)' },
+    { l: 'Grad', q: 'The gradient magnitude |∂ℓ/∂f| of the log loss log(1 + exp(−2ỹf)) is bounded by…', o: ['2', '1/4', 'e', 'it is unbounded'], a: 0, w: '2/(1 + exp(2m)) < 2 for every margin m. Exponential loss has exp(−m), unbounded.' }
+  ]
+};
+
+/* ---------- levels ---------- */
+const LEVELS = { 1: 'Kid', 2: 'High school', 3: 'Undergrad', 4: 'Grad / MLE' };
+let level = 3;
+try { const s = localStorage.getItem('rfb-lab-level'); if (s && LEVELS[s]) level = +s; } catch (e) {}
+$$('[data-lv]').forEach(card => {
+  const kids = [...card.children];
+  const tabs = document.createElement('div'); tabs.className = 'lvtabs'; tabs.setAttribute('role', 'tablist');
+  tabs.innerHTML = Object.entries(LEVELS).map(([k, v]) => `<button role="tab" data-tab="${k}">${v}</button>`).join('');
+  const body = document.createElement('div'); body.className = 'lvbody';
+  kids.forEach(k => body.appendChild(k));
+  card.appendChild(tabs); card.appendChild(body);
+  tabs.addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) showCard(card, +b.dataset.tab); });
+});
+function showCard(card, l) {
+  $$('.lvbody > [data-l]', card).forEach(d => { d.hidden = +d.dataset.l !== l; });
+  $$('[data-tab]', card).forEach(b => { b.classList.toggle('on', +b.dataset.tab === l); b.setAttribute('aria-selected', +b.dataset.tab === l); });
+}
+function setLevel(l) {
+  level = l; try { localStorage.setItem('rfb-lab-level', l); } catch (e) {}
+  $$('[data-lv]').forEach(c => showCard(c, l));
+  $$('[data-setl]').forEach(b => b.classList.toggle('on', +b.dataset.setl === l));
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-setl]'); if (b) setLevel(+b.dataset.setl); });
+setLevel(level);
+
+/* ---------- score ---------- */
+const SCORE = { right: 0, total: 0, paint() { $('#score').innerHTML = `Quiz <b>${this.right}</b> / ${this.total}`; } };
+(function () {
+  $$('[data-quiz]').forEach(box => {
+    const qs = QUIZ[box.dataset.quiz]; SCORE.total += qs.length;
+    let local = 0;
+    const order = q => { let h = 0; for (const ch of q.q) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); const r = rng(h), ix = q.o.map((_, j) => j); for (let j = ix.length - 1; j > 0; j--) { const k = Math.floor(r() * (j + 1)); [ix[j], ix[k]] = [ix[k], ix[j]]; } return ix; };
+    function build() {
+      box.innerHTML = qs.map((q, i) => `<div class="qq" data-i="${i}"><p class="qt"><span class="qn">Q${i + 1}</span>${q.q}<span class="ql">${q.l}</span></p><div class="opts">${order(q).map(j => `<button class="opt" data-j="${j}">${q.o[j]}</button>`).join('')}</div></div>`).join('') +
+        `<div class="quizfoot"><span class="qs">0 / ${qs.length} correct</span><button class="b qreset">Reset these questions</button></div>`;
+    }
+    build();
+    box.addEventListener('click', e => {
+      if (e.target.closest('.qreset')) { SCORE.right -= local; local = 0; build(); SCORE.paint(); return; }
+      const b = e.target.closest('.opt'); if (!b || b.disabled) return;
+      const card = b.closest('.qq'), q = qs[+card.dataset.i], ok = +b.dataset.j === q.a;
+      $$('.opt', card).forEach(x => { x.disabled = true; if (+x.dataset.j === q.a) x.classList.add('right'); });
+      if (!ok) b.classList.add('wrong');
+      card.insertAdjacentHTML('beforeend', `<p class="why-ans"><b class="${ok ? 'ok' : 'no'}">${ok ? 'Correct.' : 'Not quite.'}</b> ${q.w}</p>`);
+      if (ok) { local++; SCORE.right++; }
+      $('.qs', box).textContent = `${local} / ${qs.length} correct`;
+      SCORE.paint();
+    });
+  });
+  SCORE.paint();
+})();
+
+/* ---------- rail highlight + theme changes ---------- */
+(function () {
+  const links = $$('#rail a'), secs = links.map(a => $(a.getAttribute('href')));
+  const io = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id)); });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  secs.forEach(s => s && io.observe(s));
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderers.forEach(f => f()));
+})();
+})();
+</script>
+</body>
+</html>
